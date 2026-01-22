@@ -53,6 +53,8 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<EnhancedAuthPage />} />
         <Route path="/partner" element={<PartnerLanding />} />
+        <Route path="/partner-program" element={<PartnerProgramPage />} />
+        <Route path="/partner-first-login" element={<PartnerFirstLoginPassword />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         {/* User Routes */}
