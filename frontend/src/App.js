@@ -112,7 +112,15 @@ function AppRoutes() {
           path="/partner-dashboard"
           element={
             <ProtectedRoute allowedRoles={['PARTNER']}>
-              <PartnerDashboard />
+              <EnhancedPartnerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner-orders"
+          element={
+            <ProtectedRoute allowedRoles={['PARTNER']}>
+              <PartnerOrdersPage />
             </ProtectedRoute>
           }
         />
