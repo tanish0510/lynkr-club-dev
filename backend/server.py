@@ -205,17 +205,27 @@ class PartnerSignup(BaseModel):
     contact_email: EmailStr
     password: str
 
+class PartnerCreate(BaseModel):
+    business_name: str
+    category: str
+    website: str
+    contact_email: EmailStr
+    contact_person: str
+
 class Partner(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     business_name: str
     category: str
     website: str
-    monthly_orders: int
-    commission_preference: str
+    monthly_orders: int = 0
+    commission_preference: str = "2%"
     contact_email: EmailStr
+    contact_person: str = ""
     password_hash: str
     status: str = PartnerStatus.PENDING
+    temp_password: Optional[str] = None
+    must_change_password: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class PartnerResponse(BaseModel):
@@ -224,6 +234,27 @@ class PartnerResponse(BaseModel):
     category: str
     status: str
     monthly_orders: int
+
+class PartnerOrder(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    partner_id: str
+    purchase_id: str
+    user_lynkr_email: str
+    order_id: str
+    amount: float
+    status: str = "PENDING"  # PENDING, ACKNOWLEDGED, DISPUTED
+    acknowledged_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PartnerOrderResponse(BaseModel):
+    id: str
+    user_lynkr_email: str
+    order_id: str
+    amount: float
+    status: str
+    created_at: str
+    acknowledged_at: Optional[str]
 
 # Survey Models
 class UserSurvey(BaseModel):
