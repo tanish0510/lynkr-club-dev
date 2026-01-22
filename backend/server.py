@@ -287,7 +287,7 @@ def create_access_token(data: dict) -> str:
 
 def generate_lynkr_email(user_id: str) -> str:
     short_id = user_id[:8]
-    return f"user{short_id}@lynkr.one"
+    return f"user{short_id}@lynkr.club"
 
 def generate_verification_token() -> str:
     return str(uuid.uuid4())
