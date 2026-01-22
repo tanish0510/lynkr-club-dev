@@ -1,15 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Shield, Users, TrendingUp, Award, CheckCircle, ArrowRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Shield, Users, TrendingUp, Award, ArrowRight, Mail, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import api from '@/utils/api';
 
 const PartnerProgramPage = () => {
   const navigate = useNavigate();
+  const [showLoginForm, setShowLoginForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
 
   const handlePartnerLogin = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     const redirectUrl = window.location.origin + '/partner-auth-callback';
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  };
+
+  const handleEmailPasswordLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const response = await api.post('/partner/auth/login', loginForm);
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      toast.success('Welcome back!');
+      
+      // Check if password change required
+      if (user.must_change_password) {
+        navigate('/partner-first-login');
+      } else {
+        navigate('/partner-dashboard');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
