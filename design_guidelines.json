@@ -1,0 +1,141 @@
+{
+  "identity": {
+    "name": "E1",
+    "role": "Anti-AI Creative Designer",
+    "mission": "Create top 1% designs by mixing disparate disciplines and breaking conventions.",
+    "principles": [
+      "Fusion over Imitation",
+      "Emotion First",
+      "Content is King",
+      "Zoom In",
+      "Negative Space",
+      "Contrast"
+    ]
+  },
+  "project": {
+    "name": "Lynkr",
+    "description": "Premium, mailbox-first rewards and intelligence platform.",
+    "aesthetic": "CRED-style minimalism, Dark-first premium, confident typography, soft shadows.",
+    "target_audience": "Premium consumers and Brand partners."
+  },
+  "typography": {
+    "fonts": {
+      "heading": {
+        "family": "Outfit",
+        "weights": ["500", "700", "900"],
+        "usage": "Headings, Hero Text, Big Numbers",
+        "fallback": "sans-serif"
+      },
+      "body": {
+        "family": "Manrope",
+        "weights": ["400", "500", "600"],
+        "usage": "Paragraphs, UI Labels, Data",
+        "fallback": "sans-serif"
+      },
+      "accent": {
+        "family": "Playfair Display",
+        "weights": ["400", "700"],
+        "usage": "Special moments, 'Delight' text (optional)",
+        "fallback": "serif"
+      }
+    },
+    "scale": {
+      "h1": "text-5xl md:text-7xl font-bold tracking-tight leading-none",
+      "h2": "text-4xl md:text-5xl font-bold tracking-tight",
+      "h3": "text-2xl md:text-3xl font-semibold tracking-normal",
+      "body_lg": "text-lg md:text-xl font-medium leading-relaxed",
+      "body_base": "text-base font-normal leading-relaxed text-muted-foreground",
+      "caption": "text-sm font-medium tracking-wide uppercase text-muted-foreground"
+    }
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": "#050505",
+      "foreground": "#FFFFFF",
+      "card": "#121212",
+      "card_foreground": "#FFFFFF",
+      "primary": "#3B82F6",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#1E1E24",
+      "secondary_foreground": "#FFFFFF",
+      "accent": "#F472B6",
+      "accent_foreground": "#000000",
+      "muted": "#1E1E24",
+      "muted_foreground": "#A1A1AA",
+      "border": "#27272A",
+      "input": "#27272A",
+      "ring": "#3B82F6"
+    },
+    "gradients": {
+      "subtle_glow": "radial-gradient(circle at center, rgba(59, 130, 246, 0.15) 0%, rgba(0, 0, 0, 0) 70%)",
+      "card_shimmer": "linear-gradient(110deg, #121212 8%, #1E1E24 18%, #121212 33%)"
+    }
+  },
+  "layout": {
+    "spacing": {
+      "container_padding": "p-6 md:p-12 lg:p-24",
+      "section_gap": "gap-16 md:gap-32",
+      "element_gap": "gap-4 md:gap-8"
+    },
+    "grids": {
+      "bento_dashboard": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6",
+      "marketing_hero": "grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+    },
+    "container": {
+      "max_width": "max-w-7xl mx-auto"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 py-6 text-lg font-bold shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:scale-105 active:scale-95",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-full px-6 py-4 text-base font-medium border border-white/10 transition-all hover:border-white/20",
+      "ghost": "hover:bg-white/5 text-foreground rounded-full px-4 py-2"
+    },
+    "cards": {
+      "base": "bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-6 md:p-8 relative overflow-hidden",
+      "hover_effect": "hover:border-white/10 transition-colors duration-300 group",
+      "glass": "bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl"
+    },
+    "inputs": {
+      "style": "bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg placeholder:text-muted-foreground/50"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "glow": "0 0 40px -10px rgba(59, 130, 246, 0.3)",
+      "soft": "0 10px 40px -10px rgba(0,0,0,0.5)"
+    },
+    "borders": {
+      "subtle": "1px solid rgba(255,255,255,0.08)",
+      "highlight": "1px solid rgba(255,255,255,0.15)"
+    },
+    "animations": {
+      "hover_lift": "transition-transform duration-300 hover:-translate-y-1",
+      "fade_in": "animate-in fade-in duration-700 slide-in-from-bottom-4"
+    }
+  },
+  "assets": {
+    "images": {
+      "hero_bg": "https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg",
+      "lifestyle_shopping": "https://images.pexels.com/photos/8936993/pexels-photo-8936993.jpeg",
+      "rewards_gift": "https://images.pexels.com/photos/360624/pexels-photo-360624.jpeg",
+      "network_abstract": "https://images.pexels.com/photos/30766684/pexels-photo-30766684.png"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width={1.5} className='w-6 h-6'"
+    }
+  },
+  "universal_guidelines": [
+    "Do not use gradients for backgrounds; use deep solid colors or subtle noise textures.",
+    "Avoid 'Inter' for headings; use 'Outfit' to maintain the premium tech feel.",
+    "Use 2-3x more padding than standard designs.",
+    "Dark mode is the default and primary experience.",
+    "All interactive elements must have a hover state that changes brightness or scale.",
+    "Use 'sonner' for toasts.",
+    "Do not use generic AI emojis.",
+    "Ensure all interactive elements have 'data-testid'."
+  ],
+  "instructions_to_main_agent": "Implement the design using the provided JSON guidelines. Start by setting up the global CSS variables in index.css to match the palette. Then, customize the Tailwind config to add the fonts and colors. Build the components using Shadcn primitives but heavily customized with the classes provided in the 'components' section. Focus on the 'Bento' grid layout for the dashboard and the 'Tetris' grid for the landing page."
+}
