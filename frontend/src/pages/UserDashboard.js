@@ -83,6 +83,14 @@ const UserDashboard = () => {
               Rewards
             </Button>
             <Button
+              data-testid="settings-nav-button"
+              variant="ghost"
+              className="hover:bg-white/5 rounded-full"
+              onClick={() => navigate('/settings')}
+            >
+              Settings
+            </Button>
+            <Button
               data-testid="logout-button"
               variant="ghost"
               className="hover:bg-white/5 rounded-full"
