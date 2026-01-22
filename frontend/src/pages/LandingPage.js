@@ -69,7 +69,7 @@ const LandingPage = () => {
                   data-testid="partner-button"
                   variant="outline"
                   className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-full px-6 py-6 text-base font-medium border border-white/10 hover:border-white/20"
-                  onClick={() => navigate('/partner')}
+                  onClick={() => navigate('/partner-program')}
                 >
                   For Partners
                 </Button>
