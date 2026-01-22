@@ -1138,6 +1138,61 @@ async def verify_purchase(purchase_id: str, action: str, user: User = Depends(ge
     
     return {"success": True, "new_status": new_status}
 
+@api_router.post("/admin/create-partner")
+async def create_partner(partner_data: PartnerCreate, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    
+    # Check if partner exists
+    existing = await db.partners.find_one({"contact_email": partner_data.contact_email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Partner email already registered")
+    
+    # Generate random password
+    temp_password = generate_random_password()
+    
+    # Create partner
+    partner = Partner(
+        business_name=partner_data.business_name,
+        category=partner_data.category,
+        website=partner_data.website,
+        contact_email=partner_data.contact_email,
+        contact_person=partner_data.contact_person,
+        password_hash=hash_password(temp_password),
+        temp_password=temp_password,
+        must_change_password=True,
+        status=PartnerStatus.PENDING
+    )
+    
+    doc = partner.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.partners.insert_one(doc)
+    
+    # Create user account for partner login
+    user_account = User(
+        email=partner_data.contact_email,
+        password_hash=hash_password(temp_password),
+        full_name=partner_data.contact_person or partner_data.business_name,
+        phone="",
+        dob=datetime.now().date().isoformat(),
+        gender="",
+        role=UserRole.PARTNER,
+        lynkr_email="",  # Partners don't get Lynkr email
+        email_verified=True
+    )
+    
+    user_doc = user_account.model_dump()
+    user_doc['created_at'] = user_doc['created_at'].isoformat()
+    user_doc['partner_id'] = partner.id
+    await db.users.insert_one(user_doc)
+    
+    return {
+        "success": True,
+        "partner_id": partner.id,
+        "email": partner_data.contact_email,
+        "temp_password": temp_password,
+        "message": "Partner created successfully. Share the credentials with the partner."
+    }
+
 @api_router.post("/admin/update-partner-status/{partner_id}")
 async def update_partner_status(partner_id: str, new_status: str, user: User = Depends(get_current_user)):
     await require_role(user, UserRole.ADMIN)
