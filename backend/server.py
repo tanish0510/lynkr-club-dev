@@ -601,4 +601,549 @@ async def get_dashboard(user: User = Depends(get_current_user)):
         "available_rewards": rewards
     }
 
-# Continue with rest of endpoints...
+# ============ PURCHASES ENDPOINTS ============
+
+@api_router.post("/purchases", response_model=PurchaseResponse)
+async def create_purchase(purchase_data: PurchaseCreate, user: User = Depends(get_current_user)):
+    purchase = Purchase(
+        user_id=user.id,
+        brand=purchase_data.brand,
+        order_id=purchase_data.order_id,
+        amount=purchase_data.amount,
+        status=PurchaseStatus.PENDING
+    )
+    
+    doc = purchase.model_dump()
+    doc['timestamp'] = doc['timestamp'].isoformat()
+    doc['detected_at'] = doc['detected_at'].isoformat()
+    await db.purchases.insert_one(doc)
+    
+    return PurchaseResponse(
+        id=purchase.id,
+        brand=purchase.brand,
+        order_id=purchase.order_id,
+        amount=purchase.amount,
+        status=purchase.status,
+        category=purchase.category,
+        timestamp=purchase.timestamp.isoformat()
+    )
+
+@api_router.get("/purchases")
+async def get_purchases(user: User = Depends(get_current_user)):
+    purchases = await db.purchases.find(
+        {"user_id": user.id},
+        {"_id": 0}
+    ).sort("timestamp", -1).to_list(100)
+    
+    return [
+        PurchaseResponse(
+            id=p['id'],
+            brand=p['brand'],
+            order_id=p['order_id'],
+            amount=p['amount'],
+            status=p['status'],
+            category=p.get('category'),
+            timestamp=p['timestamp']
+        ) for p in purchases
+    ]
+
+# ============ AI INSIGHTS ENDPOINTS ============
+
+@api_router.get("/ai/insights")
+async def get_ai_insights(user: User = Depends(get_current_user)):
+    # Get user purchases
+    purchases = await db.purchases.find(
+        {"user_id": user.id, "status": PurchaseStatus.VERIFIED},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    if not purchases:
+        return AIInsights(
+            spending_by_category={},
+            top_category="None",
+            monthly_trend="No data yet",
+            spending_persona="New User",
+            insights=["Start shopping with your Lynkr email to see insights!"],
+            recommendations=["Use your Lynkr email for all online purchases"]
+        )
+    
+    # Prepare data for AI
+    purchase_summary = []
+    for p in purchases:
+        purchase_summary.append({
+            "brand": p['brand'],
+            "amount": p['amount'],
+            "category": p.get('category', 'Other'),
+            "date": p['timestamp']
+        })
+    
+    # Call Gemini AI for insights
+    try:
+        chat = LlmChat(
+            api_key=os.environ.get('EMERGENT_LLM_KEY'),
+            session_id=f"insights-{user.id}",
+            system_message="You are an AI shopping insights analyst. Analyze user spending patterns and provide clear, actionable insights in JSON format."
+        )
+        chat.with_model("gemini", "gemini-3-flash-preview")
+        
+        prompt = f"""Analyze these purchases and provide insights:
+{json.dumps(purchase_summary, indent=2)}
+
+Return a JSON object with:
+1. spending_by_category: dict of category totals
+2. top_category: string
+3. monthly_trend: brief trend description
+4. spending_persona: one of [Budget Conscious, Trend Shopper, Brand Loyal, Convenience First]
+5. insights: array of 3 short human-readable insights
+6. recommendations: array of 2 actionable tips
+
+Keep insights friendly and non-technical."""
+        
+        message = UserMessage(text=prompt)
+        response = await chat.send_message(message)
+        
+        # Parse AI response
+        ai_data = json.loads(response)
+        return AIInsights(**ai_data)
+    
+    except Exception as e:
+        logging.error(f"AI insights error: {e}")
+        # Fallback to basic analysis
+        category_totals = {}
+        for p in purchases:
+            cat = p.get('category', 'Other')
+            category_totals[cat] = category_totals.get(cat, 0) + p['amount']
+        
+        top_cat = max(category_totals.items(), key=lambda x: x[1])[0] if category_totals else "None"
+        
+        return AIInsights(
+            spending_by_category=category_totals,
+            top_category=top_cat,
+            monthly_trend="Steady spending",
+            spending_persona="Active Shopper",
+            insights=[
+                f"{top_cat} is your top category",
+                f"You've made {len(purchases)} verified purchases",
+                "Keep using your Lynkr email for more rewards"
+            ],
+            recommendations=[
+                "Save points for higher value rewards",
+                "Check partner exclusive offers"
+            ]
+        )
+
+# ============ AI CHATBOT ENDPOINTS ============
+
+@api_router.post("/chat", response_model=ChatResponse)
+async def chat_with_ai(request: ChatRequest, user: User = Depends(get_current_user)):
+    # Get user context
+    purchases = await db.purchases.find(
+        {"user_id": user.id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(20).to_list(20)
+    
+    # Get chat history
+    chat_history = await db.chat_messages.find(
+        {"user_id": user.id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(10).to_list(10)
+    chat_history.reverse()
+    
+    # Build context
+    context = f"""You are Lynkr AI Assistant - a helpful, friendly shopping and rewards advisor.
+
+User Info:
+- Name: {user.full_name}
+- Points: {user.points}
+- Recent purchases: {len(purchases)}
+
+Recent Purchases:
+{json.dumps([{"brand": p['brand'], "amount": p['amount'], "status": p['status'], "date": p['timestamp']} for p in purchases[:5]], indent=2)}
+
+Your capabilities:
+1. Explain spending insights and patterns
+2. Recommend best rewards to redeem
+3. Answer questions about purchases and their status
+4. Provide shopping tips and advice
+5. Help with rewards redemption strategy
+
+Be conversational, helpful, and concise. Use emojis sparingly."""
+    
+    # Build messages for OpenAI
+    messages = [{"role": "system", "content": context}]
+    
+    # Add chat history
+    for msg in chat_history:
+        messages.append({"role": msg['role'], "content": msg['content']})
+    
+    # Add current message
+    messages.append({"role": "user", "content": request.message})
+    
+    # Call OpenAI
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=500,
+            temperature=0.7
+        )
+        
+        assistant_message = response.choices[0].message.content
+        
+        # Save user message
+        user_msg = ChatMessage(
+            user_id=user.id,
+            role="user",
+            content=request.message
+        )
+        user_doc = user_msg.model_dump()
+        user_doc['timestamp'] = user_doc['timestamp'].isoformat()
+        await db.chat_messages.insert_one(user_doc)
+        
+        # Save assistant message
+        assistant_msg = ChatMessage(
+            user_id=user.id,
+            role="assistant",
+            content=assistant_message
+        )
+        assistant_doc = assistant_msg.model_dump()
+        assistant_doc['timestamp'] = assistant_doc['timestamp'].isoformat()
+        await db.chat_messages.insert_one(assistant_doc)
+        
+        return ChatResponse(
+            id=assistant_msg.id,
+            role="assistant",
+            content=assistant_message,
+            timestamp=assistant_msg.timestamp.isoformat()
+        )
+    
+    except Exception as e:
+        logging.error(f"Chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Chat service unavailable: {str(e)}")
+
+@api_router.get("/chat/history")
+async def get_chat_history(user: User = Depends(get_current_user)):
+    messages = await db.chat_messages.find(
+        {"user_id": user.id},
+        {"_id": 0}
+    ).sort("timestamp", 1).to_list(100)
+    
+    return [
+        ChatResponse(
+            id=msg['id'],
+            role=msg['role'],
+            content=msg['content'],
+            timestamp=msg['timestamp']
+        ) for msg in messages
+    ]
+
+@api_router.delete("/chat/history")
+async def clear_chat_history(user: User = Depends(get_current_user)):
+    await db.chat_messages.delete_many({"user_id": user.id})
+    return {"success": True, "message": "Chat history cleared"}
+
+# ============ POINTS & REWARDS ENDPOINTS ============
+
+@api_router.get("/points/ledger")
+async def get_points_ledger(user: User = Depends(get_current_user)):
+    ledger = await db.points_ledger.find(
+        {"user_id": user.id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(50).to_list(50)
+    
+    return ledger
+
+@api_router.post("/points/redeem")
+async def redeem_points(reward_id: str, points: int, user: User = Depends(get_current_user)):
+    if user.points < points:
+        raise HTTPException(status_code=400, detail="Insufficient points")
+    
+    # Deduct points
+    new_balance = user.points - points
+    await db.users.update_one(
+        {"id": user.id},
+        {"$set": {"points": new_balance}}
+    )
+    
+    # Record in ledger
+    ledger_entry = PointsLedger(
+        user_id=user.id,
+        type="DEBIT",
+        amount=points,
+        description=f"Redeemed reward ID: {reward_id}",
+        balance_after=new_balance
+    )
+    
+    doc = ledger_entry.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.points_ledger.insert_one(doc)
+    
+    # Mock coupon code
+    return {
+        "success": True,
+        "new_balance": new_balance,
+        "coupon_code": f"LYNKR-{uuid.uuid4().hex[:8].upper()}",
+        "message": "Reward redeemed successfully! Check your email for the coupon code."
+    }
+
+# ============ PARTNER ENDPOINTS ============
+
+@api_router.post("/partner/signup")
+async def partner_signup(partner_data: PartnerSignup):
+    existing = await db.partners.find_one({"contact_email": partner_data.contact_email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    partner = Partner(
+        business_name=partner_data.business_name,
+        category=partner_data.category,
+        website=partner_data.website,
+        monthly_orders=partner_data.monthly_orders,
+        commission_preference=partner_data.commission_preference,
+        contact_email=partner_data.contact_email,
+        password_hash=hash_password(partner_data.password),
+        status=PartnerStatus.PENDING
+    )
+    
+    doc = partner.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.partners.insert_one(doc)
+    
+    # Also create a user account for partner login
+    user = User(
+        email=partner_data.contact_email,
+        password_hash=hash_password(partner_data.password),
+        full_name=partner_data.business_name,
+        phone="",
+        dob=datetime.now().date().isoformat(),
+        gender="",
+        role=UserRole.PARTNER,
+        lynkr_email=f"partner{partner.id[:8]}@lynkr.one"
+    )
+    
+    user_doc = user.model_dump()
+    user_doc['created_at'] = user_doc['created_at'].isoformat()
+    user_doc['partner_id'] = partner.id
+    await db.users.insert_one(user_doc)
+    
+    token = create_access_token({"sub": user.id, "role": user.role})
+    
+    return {
+        "token": token,
+        "partner": PartnerResponse(
+            id=partner.id,
+            business_name=partner.business_name,
+            category=partner.category,
+            status=partner.status,
+            monthly_orders=partner.monthly_orders
+        )
+    }
+
+@api_router.get("/partner/dashboard")
+async def get_partner_dashboard(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.PARTNER)
+    
+    # Get partner info
+    user_data = await db.users.find_one({"id": user.id}, {"_id": 0})
+    partner_id = user_data.get('partner_id')
+    
+    if not partner_id:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0})
+    
+    # Mock metrics
+    return {
+        "partner_info": partner,
+        "lynkr_users": 1247,
+        "detected_purchases": 89,
+        "verified_purchases": 67,
+        "monthly_summary": {
+            "total_orders": 67,
+            "total_value": 45300,
+            "avg_order_value": 676
+        }
+    }
+
+# ============ ADMIN ENDPOINTS ============
+
+@api_router.get("/admin/users")
+async def get_all_users(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    
+    users = await db.users.find({"role": UserRole.USER}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return users
+
+@api_router.get("/admin/partners")
+async def get_all_partners(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    
+    partners = await db.partners.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return partners
+
+@api_router.get("/admin/purchases")
+async def get_all_purchases(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    
+    purchases = await db.purchases.find({}, {"_id": 0}).sort("detected_at", -1).to_list(1000)
+    return purchases
+
+@api_router.post("/admin/verify-purchase/{purchase_id}")
+async def verify_purchase(purchase_id: str, action: str, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    
+    if action not in ["VERIFY", "REJECT"]:
+        raise HTTPException(status_code=400, detail="Invalid action")
+    
+    purchase = await db.purchases.find_one({"id": purchase_id}, {"_id": 0})
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    
+    new_status = PurchaseStatus.VERIFIED if action == "VERIFY" else PurchaseStatus.REJECTED
+    
+    await db.purchases.update_one(
+        {"id": purchase_id},
+        {"$set": {"status": new_status, "verified_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # If verified, credit points
+    if action == "VERIFY":
+        points_to_credit = int(purchase['amount'] * 0.01)  # 1% cashback
+        
+        # Update user points
+        user_data = await db.users.find_one({"id": purchase['user_id']}, {"_id": 0})
+        new_balance = user_data['points'] + points_to_credit
+        
+        await db.users.update_one(
+            {"id": purchase['user_id']},
+            {"$set": {"points": new_balance}}
+        )
+        
+        # Record in ledger
+        ledger_entry = PointsLedger(
+            user_id=purchase['user_id'],
+            type="CREDIT",
+            amount=points_to_credit,
+            description=f"Purchase verified: {purchase['brand']} - ₹{purchase['amount']}",
+            balance_after=new_balance
+        )
+        
+        doc = ledger_entry.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        await db.points_ledger.insert_one(doc)
+    
+    return {"success": True, "new_status": new_status}
+
+@api_router.post("/admin/update-partner-status/{partner_id}")
+async def update_partner_status(partner_id: str, new_status: str, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    
+    if new_status not in [PartnerStatus.PENDING, PartnerStatus.PILOT, PartnerStatus.ACTIVE]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    await db.partners.update_one(
+        {"id": partner_id},
+        {"$set": {"status": new_status}}
+    )
+    
+    return {"success": True}
+
+# ============ SURVEY ENDPOINTS ============
+
+@api_router.post("/survey/user")
+async def submit_user_survey(
+    shopping_habits: str,
+    reward_preferences: str,
+    trust_concerns: str,
+    user: User = Depends(get_current_user)
+):
+    survey = UserSurvey(
+        user_id=user.id,
+        shopping_habits=shopping_habits,
+        reward_preferences=reward_preferences,
+        trust_concerns=trust_concerns
+    )
+    
+    doc = survey.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.user_surveys.insert_one(doc)
+    
+    return {"success": True}
+
+@api_router.post("/survey/partner")
+async def submit_partner_survey(
+    willingness_to_pilot: str,
+    commission_expectations: str,
+    feedback: str,
+    user: User = Depends(get_current_user)
+):
+    await require_role(user, UserRole.PARTNER)
+    
+    user_data = await db.users.find_one({"id": user.id}, {"_id": 0})
+    partner_id = user_data.get('partner_id')
+    
+    survey = PartnerSurvey(
+        partner_id=partner_id,
+        willingness_to_pilot=willingness_to_pilot,
+        commission_expectations=commission_expectations,
+        feedback=feedback
+    )
+    
+    doc = survey.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.partner_surveys.insert_one(doc)
+    
+    return {"success": True}
+
+# ============ MOCK EMAIL INGESTION ============
+
+@api_router.post("/mock/ingest-email")
+async def mock_email_ingestion(
+    lynkr_email: str,
+    brand: str,
+    order_id: str,
+    amount: float
+):
+    """Mock endpoint to simulate email ingestion service"""
+    # Find user by lynkr_email
+    user = await db.users.find_one({"lynkr_email": lynkr_email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Create purchase
+    purchase = Purchase(
+        user_id=user['id'],
+        brand=brand,
+        order_id=order_id,
+        amount=amount,
+        status=PurchaseStatus.PENDING,
+        category=SpendingCategory.OTHER
+    )
+    
+    doc = purchase.model_dump()
+    doc['timestamp'] = doc['timestamp'].isoformat()
+    doc['detected_at'] = doc['detected_at'].isoformat()
+    await db.purchases.insert_one(doc)
+    
+    return {"success": True, "purchase_id": purchase.id}
+
+# Include router
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    client.close()
