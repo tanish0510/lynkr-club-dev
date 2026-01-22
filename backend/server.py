@@ -13,7 +13,14 @@ import uuid
 from datetime import datetime, timezone, timedelta, date
 from passlib.context import CryptContext
 import jwt
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+# Optional import for emergentintegrations (not available on PyPI)
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    EMERGENT_AVAILABLE = True
+except ImportError:
+    EMERGENT_AVAILABLE = False
+    LlmChat = None
+    UserMessage = None
 import json
 import resend
 from openai import AsyncOpenAI
@@ -714,16 +721,17 @@ async def get_ai_insights(user: User = Depends(get_current_user)):
             "date": p['timestamp']
         })
     
-    # Call Gemini AI for insights
-    try:
-        chat = LlmChat(
-            api_key=os.environ.get('EMERGENT_LLM_KEY'),
-            session_id=f"insights-{user.id}",
-            system_message="You are an AI shopping insights analyst. Analyze user spending patterns and provide clear, actionable insights in JSON format."
-        )
-        chat.with_model("gemini", "gemini-3-flash-preview")
-        
-        prompt = f"""Analyze these purchases and provide insights:
+    # Call Gemini AI for insights (if emergentintegrations is available)
+    if EMERGENT_AVAILABLE and os.environ.get('EMERGENT_LLM_KEY'):
+        try:
+            chat = LlmChat(
+                api_key=os.environ.get('EMERGENT_LLM_KEY'),
+                session_id=f"insights-{user.id}",
+                system_message="You are an AI shopping insights analyst. Analyze user spending patterns and provide clear, actionable insights in JSON format."
+            )
+            chat.with_model("gemini", "gemini-3-flash-preview")
+            
+            prompt = f"""Analyze these purchases and provide insights:
 {json.dumps(purchase_summary, indent=2)}
 
 Return a JSON object with:
@@ -735,39 +743,42 @@ Return a JSON object with:
 6. recommendations: array of 2 actionable tips
 
 Keep insights friendly and non-technical."""
+            
+            message = UserMessage(text=prompt)
+            response = await chat.send_message(message)
+            
+            # Parse AI response
+            ai_data = json.loads(response)
+            return AIInsights(**ai_data)
         
-        message = UserMessage(text=prompt)
-        response = await chat.send_message(message)
-        
-        # Parse AI response
-        ai_data = json.loads(response)
-        return AIInsights(**ai_data)
+        except Exception as e:
+            logging.error(f"AI insights error: {e}")
+            # Fallback to basic analysis below
     
-    except Exception as e:
-        logging.error(f"AI insights error: {e}")
-        # Fallback to basic analysis
-        category_totals = {}
-        for p in purchases:
-            cat = p.get('category', 'Other')
-            category_totals[cat] = category_totals.get(cat, 0) + p['amount']
-        
-        top_cat = max(category_totals.items(), key=lambda x: x[1])[0] if category_totals else "None"
-        
-        return AIInsights(
-            spending_by_category=category_totals,
-            top_category=top_cat,
-            monthly_trend="Steady spending",
-            spending_persona="Active Shopper",
-            insights=[
-                f"{top_cat} is your top category",
-                f"You've made {len(purchases)} verified purchases",
-                "Keep using your Lynkr email for more rewards"
-            ],
-            recommendations=[
-                "Save points for higher value rewards",
-                "Check partner exclusive offers"
-            ]
-        )
+    # Fallback to basic analysis (when emergentintegrations not available or fails)
+    logging.info("Using fallback AI insights analysis")
+    category_totals = {}
+    for p in purchases:
+        cat = p.get('category', 'Other')
+        category_totals[cat] = category_totals.get(cat, 0) + p['amount']
+    
+    top_cat = max(category_totals.items(), key=lambda x: x[1])[0] if category_totals else "None"
+    
+    return AIInsights(
+        spending_by_category=category_totals,
+        top_category=top_cat,
+        monthly_trend="Steady spending",
+        spending_persona="Active Shopper",
+        insights=[
+            f"{top_cat} is your top category",
+            f"You've made {len(purchases)} verified purchases",
+            "Keep using your Lynkr email for more rewards"
+        ],
+        recommendations=[
+            "Save points for higher value rewards",
+            "Check partner exclusive offers"
+        ]
+    )
 
 # ============ AI CHATBOT ENDPOINTS ============
 
