@@ -3,14 +3,17 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { Toaster } from '@/components/ui/sonner';
 import LandingPage from '@/pages/LandingPage';
-import AuthPage from '@/pages/AuthPage';
+import EnhancedAuthPage from '@/pages/EnhancedAuthPage';
 import OnboardingPage from '@/pages/OnboardingPage';
 import UserDashboard from '@/pages/UserDashboard';
 import AIInsightsPage from '@/pages/AIInsightsPage';
 import RewardsPage from '@/pages/RewardsPage';
+import SettingsPage from '@/pages/SettingsPage';
 import PartnerLanding from '@/pages/PartnerLanding';
 import PartnerDashboard from '@/pages/PartnerDashboard';
 import AdminPanel from '@/pages/AdminPanel';
+import VerifyEmailPage from '@/pages/VerifyEmailPage';
+import AIChatbot from '@/components/AIChatbot';
 import '@/index.css';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
