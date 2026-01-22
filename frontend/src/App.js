@@ -39,70 +39,86 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 };
 
 function AppRoutes() {
+  const { user } = useAuth();
+  
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/auth" element={<AuthPage />} />
-      <Route path="/partner" element={<PartnerLanding />} />
+    <>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/auth" element={<EnhancedAuthPage />} />
+        <Route path="/partner" element={<PartnerLanding />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-      {/* User Routes */}
-      <Route
-        path="/onboarding"
-        element={
-          <ProtectedRoute allowedRoles={['USER']}>
-            <OnboardingPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['USER']}>
-            <UserDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/insights"
-        element={
-          <ProtectedRoute allowedRoles={['USER']}>
-            <AIInsightsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/rewards"
-        element={
-          <ProtectedRoute allowedRoles={['USER']}>
-            <RewardsPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* User Routes */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <OnboardingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <UserDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/insights"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <AIInsightsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rewards"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <RewardsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Partner Routes */}
-      <Route
-        path="/partner-dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['PARTNER']}>
-            <PartnerDashboard />
-          </ProtectedRoute>
-        }
-      />
+        {/* Partner Routes */}
+        <Route
+          path="/partner-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['PARTNER']}>
+              <PartnerDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Admin Routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <AdminPanel />
-          </ProtectedRoute>
-        }
-      />
+        {/* Admin Routes */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminPanel />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Catch all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      
+      {/* AI Chatbot - Only for authenticated users */}
+      {user && user.role === 'USER' && <AIChatbot />}
+    </>
   );
 }
 
