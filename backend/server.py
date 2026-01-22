@@ -1284,6 +1284,24 @@ async def mock_email_ingestion(
     doc['detected_at'] = doc['detected_at'].isoformat()
     await db.purchases.insert_one(doc)
     
+    # Find partner by brand name (simplified - in real app, would be more sophisticated)
+    partner = await db.partners.find_one({"business_name": {"$regex": brand, "$options": "i"}}, {"_id": 0})
+    
+    if partner:
+        # Create partner order
+        partner_order = PartnerOrder(
+            partner_id=partner['id'],
+            purchase_id=purchase.id,
+            user_lynkr_email=lynkr_email,
+            order_id=order_id,
+            amount=amount,
+            status="PENDING"
+        )
+        
+        partner_doc = partner_order.model_dump()
+        partner_doc['created_at'] = partner_doc['created_at'].isoformat()
+        await db.partner_orders.insert_one(partner_doc)
+    
     return {"success": True, "purchase_id": purchase.id}
 
 # Include router
