@@ -145,6 +145,28 @@ const UserDashboard = () => {
 
         {/* Bento Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+          {/* AI Chat Prompt Card */}
+          <div 
+            data-testid="ai-chat-prompt-card" 
+            onClick={() => navigate('/chat')}
+            className="bg-gradient-to-br from-primary/20 to-accent/20 rounded-3xl border border-primary/30 shadow-2xl p-6 col-span-1 md:col-span-2 cursor-pointer hover:scale-[1.02] transition-transform"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-primary/30 rounded-2xl flex items-center justify-center">
+                <MessageCircle className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Ask Lynkr AI</h3>
+                <p className="text-sm text-muted-foreground">Your personal shopping assistant</p>
+              </div>
+            </div>
+            <p className="text-sm mb-4">Get insights, tips, and answers about your shopping and rewards instantly!</p>
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6 py-2 glow-primary">
+              <MessageCircle className="mr-2 w-4 h-4" />
+              Start Chatting
+            </Button>
+          </div>
+          
           {/* This Month Spending */}
           <div data-testid="month-spending-card" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-6 col-span-1">
             <div className="flex items-center gap-3 mb-4">
