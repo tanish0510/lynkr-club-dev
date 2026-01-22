@@ -9,6 +9,7 @@ import UserDashboard from '@/pages/UserDashboard';
 import AIInsightsPage from '@/pages/AIInsightsPage';
 import RewardsPage from '@/pages/RewardsPage';
 import SettingsPage from '@/pages/SettingsPage';
+import ChatPage from '@/pages/ChatPage';
 import PartnerLanding from '@/pages/PartnerLanding';
 import PartnerDashboard from '@/pages/PartnerDashboard';
 import AdminPanel from '@/pages/AdminPanel';
