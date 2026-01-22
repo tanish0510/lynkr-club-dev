@@ -1,7 +1,9 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -41,7 +43,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 # Email Configuration
 resend.api_key = os.environ.get('RESEND_API_KEY')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://lynkr.club')
 
 # OpenAI Configuration
 openai_client = AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
@@ -53,8 +55,28 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 # Create the main app
-app = FastAPI()
+# Configure docs to be at /api/docs instead of /docs
+app = FastAPI(
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json"
+)
 api_router = APIRouter(prefix="/api")
+
+# Root API endpoint - handle both /api and /api/
+@api_router.get("")
+@api_router.get("/")
+async def api_root():
+    return {
+        "message": "Lynkr API",
+        "version": "1.0.0",
+        "docs": "/api/docs",
+        "endpoints": {
+            "auth": "/api/auth/login, /api/auth/signup, /api/auth/verify-email",
+            "user": "/api/user/me",
+            "chat": "/api/chat"
+        }
+    }
 
 # ============ MODELS ============
 
@@ -1350,6 +1372,23 @@ async def mock_email_ingestion(
 
 # Include router
 app.include_router(api_router)
+
+# Custom 404 handler for API routes
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if request.url.path.startswith("/api"):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "detail": exc.detail if exc.status_code != 404 else "API endpoint not found. Check /api/docs for available endpoints.",
+                "path": request.url.path,
+                "method": request.method
+            }
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
 
 app.add_middleware(
     CORSMiddleware,

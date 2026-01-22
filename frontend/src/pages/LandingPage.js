@@ -40,7 +40,7 @@ const LandingPage = () => {
             <div className="lg:col-span-7 space-y-8">
               <div className="inline-block">
                 <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground bg-secondary/50 px-4 py-2 rounded-full border border-white/10">
-                  Mailbox-First Rewards
+                  First Rewards
                 </span>
               </div>
               

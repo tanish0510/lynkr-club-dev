@@ -16,8 +16,16 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
 
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+  // ALWAYS use window.location.origin in production (browser runtime)
+  // This ensures API calls go to the current domain (lynkr.club) regardless of build-time env vars
+  // The build-time REACT_APP_BACKEND_URL is only used for development
+  const BACKEND_URL = window.location.origin;
   const API = `${BACKEND_URL}/api`;
+  
+  // Debug: Log the API URL to verify it's correct
+  console.log('[AuthContext] BACKEND_URL:', BACKEND_URL);
+  console.log('[AuthContext] API:', API);
+  console.log('[AuthContext] window.location.origin:', window.location.origin);
 
   useEffect(() => {
     if (token) {
@@ -26,6 +34,7 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const fetchUser = async () => {

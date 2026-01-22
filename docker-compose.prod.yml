@@ -30,10 +30,10 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       SENDER_EMAIL: ${SENDER_EMAIL:-noreply@lynkr.club}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-https://lynkr.club}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       EMERGENT_LLM_KEY: ${EMERGENT_LLM_KEY:-}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:80}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://lynkr.club,https://www.lynkr.club}
     env_file:
       - .env
     depends_on:
