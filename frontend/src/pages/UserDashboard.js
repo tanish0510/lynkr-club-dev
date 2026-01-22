@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { TrendingUp, Gift, Mail, Sparkles, LogOut, Copy } from 'lucide-react';
+import { TrendingUp, Gift, Mail, Sparkles, LogOut, Copy, MessageCircle } from 'lucide-react';
 import api from '@/utils/api';
 
 const UserDashboard = () => {
