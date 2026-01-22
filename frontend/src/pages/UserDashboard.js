@@ -65,6 +65,15 @@ const UserDashboard = () => {
           <div className="text-2xl font-heading font-bold tracking-tight">Lynkr</div>
           <div className="flex items-center gap-4">
             <Button
+              data-testid="chat-nav-button"
+              variant="ghost"
+              className="hover:bg-white/5 rounded-full"
+              onClick={() => navigate('/chat')}
+            >
+              <MessageCircle className="mr-2 w-4 h-4" />
+              AI Chat
+            </Button>
+            <Button
               data-testid="insights-nav-button"
               variant="ghost"
               className="hover:bg-white/5 rounded-full"
