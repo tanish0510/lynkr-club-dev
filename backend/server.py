@@ -925,6 +925,39 @@ async def redeem_points(reward_id: str, points: int, user: User = Depends(get_cu
 
 # ============ PARTNER ENDPOINTS ============
 
+@api_router.post("/partner/auth/login")
+async def partner_email_password_login(login_data: UserLogin):
+    # Find partner user
+    user = await db.users.find_one(
+        {"email": login_data.email, "role": UserRole.PARTNER},
+        {"_id": 0}
+    )
+    
+    if not user or not verify_password(login_data.password, user['password_hash']):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Get partner info
+    partner_id = user.get('partner_id')
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0})
+    
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    
+    # Create token
+    token = create_access_token({"sub": user['id'], "role": user['role']})
+    
+    return {
+        "token": token,
+        "user": {
+            "id": user['id'],
+            "email": user['email'],
+            "full_name": user['full_name'],
+            "role": user['role'],
+            "must_change_password": partner.get('must_change_password', False),
+            "partner_id": partner_id
+        }
+    }
+
 @api_router.post("/partner/first-login-password-change")
 async def partner_first_login_password_change(new_password: str, user: User = Depends(get_current_user)):
     await require_role(user, UserRole.PARTNER)
