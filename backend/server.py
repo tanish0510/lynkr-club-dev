@@ -925,56 +925,34 @@ async def redeem_points(reward_id: str, points: int, user: User = Depends(get_cu
 
 # ============ PARTNER ENDPOINTS ============
 
-@api_router.post("/partner/signup")
-async def partner_signup(partner_data: PartnerSignup):
-    existing = await db.partners.find_one({"contact_email": partner_data.contact_email}, {"_id": 0})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+@api_router.post("/partner/first-login-password-change")
+async def partner_first_login_password_change(new_password: str, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.PARTNER)
     
-    partner = Partner(
-        business_name=partner_data.business_name,
-        category=partner_data.category,
-        website=partner_data.website,
-        monthly_orders=partner_data.monthly_orders,
-        commission_preference=partner_data.commission_preference,
-        contact_email=partner_data.contact_email,
-        password_hash=hash_password(partner_data.password),
-        status=PartnerStatus.PENDING
+    # Get partner info
+    user_data = await db.users.find_one({"id": user.id}, {"_id": 0})
+    partner_id = user_data.get('partner_id')
+    
+    if not partner_id:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0})
+    
+    if not partner.get('must_change_password'):
+        raise HTTPException(status_code=400, detail="Password already changed")
+    
+    # Update password
+    new_hash = hash_password(new_password)
+    await db.users.update_one(
+        {"id": user.id},
+        {"$set": {"password_hash": new_hash}}
+    )
+    await db.partners.update_one(
+        {"id": partner_id},
+        {"$set": {"password_hash": new_hash, "must_change_password": False, "temp_password": None}}
     )
     
-    doc = partner.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
-    await db.partners.insert_one(doc)
-    
-    # Also create a user account for partner login
-    user = User(
-        email=partner_data.contact_email,
-        password_hash=hash_password(partner_data.password),
-        full_name=partner_data.business_name,
-        phone="",
-        dob=datetime.now().date().isoformat(),
-        gender="",
-        role=UserRole.PARTNER,
-        lynkr_email=f"partner{partner.id[:8]}@lynkr.one"
-    )
-    
-    user_doc = user.model_dump()
-    user_doc['created_at'] = user_doc['created_at'].isoformat()
-    user_doc['partner_id'] = partner.id
-    await db.users.insert_one(user_doc)
-    
-    token = create_access_token({"sub": user.id, "role": user.role})
-    
-    return {
-        "token": token,
-        "partner": PartnerResponse(
-            id=partner.id,
-            business_name=partner.business_name,
-            category=partner.category,
-            status=partner.status,
-            monthly_orders=partner.monthly_orders
-        )
-    }
+    return {"success": True, "message": "Password changed successfully"}
 
 @api_router.get("/partner/dashboard")
 async def get_partner_dashboard(user: User = Depends(get_current_user)):
@@ -989,18 +967,107 @@ async def get_partner_dashboard(user: User = Depends(get_current_user)):
     
     partner = await db.partners.find_one({"id": partner_id}, {"_id": 0})
     
-    # Mock metrics
+    # Get partner orders
+    orders = await db.partner_orders.find({"partner_id": partner_id}, {"_id": 0}).to_list(1000)
+    
+    # Calculate metrics
+    total_orders = len(orders)
+    acknowledged_orders = len([o for o in orders if o['status'] == 'ACKNOWLEDGED'])
+    pending_orders = len([o for o in orders if o['status'] == 'PENDING'])
+    total_value = sum(o['amount'] for o in orders)
+    
     return {
         "partner_info": partner,
-        "lynkr_users": 1247,
-        "detected_purchases": 89,
-        "verified_purchases": 67,
-        "monthly_summary": {
-            "total_orders": 67,
-            "total_value": 45300,
-            "avg_order_value": 676
+        "must_change_password": partner.get('must_change_password', False),
+        "metrics": {
+            "total_orders": total_orders,
+            "acknowledged_orders": acknowledged_orders,
+            "pending_orders": pending_orders,
+            "total_value": total_value
         }
     }
+
+@api_router.get("/partner/orders")
+async def get_partner_orders(status: Optional[str] = None, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.PARTNER)
+    
+    user_data = await db.users.find_one({"id": user.id}, {"_id": 0})
+    partner_id = user_data.get('partner_id')
+    
+    if not partner_id:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    
+    query = {"partner_id": partner_id}
+    if status:
+        query["status"] = status
+    
+    orders = await db.partner_orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    return [
+        PartnerOrderResponse(
+            id=o['id'],
+            user_lynkr_email=o['user_lynkr_email'],
+            order_id=o['order_id'],
+            amount=o['amount'],
+            status=o['status'],
+            created_at=o['created_at'],
+            acknowledged_at=o.get('acknowledged_at')
+        ) for o in orders
+    ]
+
+@api_router.post("/partner/acknowledge-order/{order_id}")
+async def acknowledge_order(order_id: str, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.PARTNER)
+    
+    user_data = await db.users.find_one({"id": user.id}, {"_id": 0})
+    partner_id = user_data.get('partner_id')
+    
+    # Verify order belongs to this partner
+    order = await db.partner_orders.find_one({"id": order_id, "partner_id": partner_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order['status'] != 'PENDING':
+        raise HTTPException(status_code=400, detail="Order already processed")
+    
+    # Acknowledge order
+    await db.partner_orders.update_one(
+        {"id": order_id},
+        {"$set": {"status": "ACKNOWLEDGED", "acknowledged_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Also update the purchase status to VERIFIED
+    await db.purchases.update_one(
+        {"id": order['purchase_id']},
+        {"$set": {"status": PurchaseStatus.VERIFIED, "verified_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Credit points to user
+    purchase = await db.purchases.find_one({"id": order['purchase_id']}, {"_id": 0})
+    points_to_credit = int(purchase['amount'] * 0.01)
+    
+    user_record = await db.users.find_one({"id": purchase['user_id']}, {"_id": 0})
+    new_balance = user_record['points'] + points_to_credit
+    
+    await db.users.update_one(
+        {"id": purchase['user_id']},
+        {"$set": {"points": new_balance}}
+    )
+    
+    # Record in ledger
+    ledger_entry = PointsLedger(
+        user_id=purchase['user_id'],
+        type="CREDIT",
+        amount=points_to_credit,
+        description=f"Purchase verified by partner: {purchase['brand']} - ₹{purchase['amount']}",
+        balance_after=new_balance
+    )
+    
+    doc = ledger_entry.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.points_ledger.insert_one(doc)
+    
+    return {"success": True, "message": "Order acknowledged and points credited"}
 
 # ============ ADMIN ENDPOINTS ============
 
