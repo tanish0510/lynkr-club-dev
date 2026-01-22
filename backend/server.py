@@ -323,6 +323,12 @@ def generate_lynkr_email(user_id: str) -> str:
 def generate_verification_token() -> str:
     return str(uuid.uuid4())
 
+def generate_random_password(length: int = 12) -> str:
+    import random
+    import string
+    characters = string.ascii_letters + string.digits + "!@#$%"
+    return ''.join(random.choice(characters) for _ in range(length))
+
 async def send_verification_email(email: str, token: str, user_name: str):
     verification_link = f"{FRONTEND_URL}/verify-email?token={token}"
     
