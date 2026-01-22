@@ -92,6 +92,14 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <ChatPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Partner Routes */}
         <Route
