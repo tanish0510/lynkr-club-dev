@@ -48,15 +48,100 @@ const PartnerProgramPage = () => {
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
           <div className="text-2xl font-heading font-bold tracking-tight">Lynkr Partner Program</div>
-          <Button
-            data-testid="partner-login-button"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6 py-3 font-bold"
-            onClick={handlePartnerLogin}
-          >
-            Partner Login
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              data-testid="toggle-login-button"
+              variant="ghost"
+              onClick={() => setShowLoginForm(!showLoginForm)}
+              className="hover:bg-white/5 rounded-full"
+            >
+              <Mail className="mr-2 w-4 h-4" />
+              {showLoginForm ? 'Use Google' : 'Email Login'}
+            </Button>
+            <Button
+              data-testid="partner-login-button"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6 py-3 font-bold"
+              onClick={handlePartnerLogin}
+            >
+              Login with Google
+            </Button>
+          </div>
         </div>
       </nav>
+
+      {/* Login Form Modal */}
+      {showLoginForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
+          <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold font-heading">Partner Login</h2>
+              <button
+                onClick={() => setShowLoginForm(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleEmailPasswordLogin} className="space-y-4">
+              <div>
+                <Label htmlFor="partner-email">Email</Label>
+                <Input
+                  id="partner-email"
+                  type="email"
+                  placeholder="partner@example.com"
+                  value={loginForm.email}
+                  onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                  required
+                  className="bg-secondary/50 border-white/10 rounded-xl h-12"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="partner-password">Password</Label>
+                <Input
+                  id="partner-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                  required
+                  className="bg-secondary/50 border-white/10 rounded-xl h-12"
+                />
+              </div>
+              
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Logging in...
+                  </>
+                ) : (
+                  'Login'
+                )}
+              </Button>
+            </form>
+            
+            <div className="mt-6 pt-6 border-t border-white/10 text-center">
+              <p className="text-sm text-muted-foreground mb-4">Or continue with</p>
+              <Button
+                onClick={() => {
+                  setShowLoginForm(false);
+                  handlePartnerLogin();
+                }}
+                variant="outline"
+                className="w-full rounded-full border-white/10"
+              >
+                Login with Google
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-6 md:px-12">
