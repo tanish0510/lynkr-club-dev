@@ -21,11 +21,6 @@ export const AuthProvider = ({ children }) => {
   // The build-time REACT_APP_BACKEND_URL is only used for development
   const BACKEND_URL = window.location.origin;
   const API = `${BACKEND_URL}/api`;
-  
-  // Debug: Log the API URL to verify it's correct
-  console.log('[AuthContext] BACKEND_URL:', BACKEND_URL);
-  console.log('[AuthContext] API:', API);
-  console.log('[AuthContext] window.location.origin:', window.location.origin);
 
   useEffect(() => {
     if (token) {
@@ -76,8 +71,17 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
   };
 
+  // Let partner login (and any external auth) update token so fetchUser runs and ProtectedRoute sees user
+  const setTokenFromStorage = (newToken) => {
+    if (newToken) {
+      localStorage.setItem('token', newToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    }
+    setToken(newToken || null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, signup, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, signup, logout, loading, setTokenFromStorage }}>
       {children}
     </AuthContext.Provider>
   );

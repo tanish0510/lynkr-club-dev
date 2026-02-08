@@ -6,13 +6,6 @@ import axios from 'axios';
 const BACKEND_URL = window.location.origin;
 export const API_URL = `${BACKEND_URL}/api`;
 
-// Debug: Log the API URL to verify it's correct
-if (typeof window !== 'undefined') {
-  console.log('[API Config] BACKEND_URL:', BACKEND_URL);
-  console.log('[API Config] API_URL:', API_URL);
-  console.log('[API Config] window.location.origin:', window.location.origin);
-}
-
 const api = axios.create({
   baseURL: API_URL,
 });

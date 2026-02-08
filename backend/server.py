@@ -27,6 +27,7 @@ import json
 import resend
 from openai import AsyncOpenAI
 
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -63,8 +64,7 @@ app = FastAPI(
 )
 api_router = APIRouter(prefix="/api")
 
-# Root API endpoint - handle both /api and /api/
-@api_router.get("")
+# Root API endpoint
 @api_router.get("/")
 async def api_root():
     return {
