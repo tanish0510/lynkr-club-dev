@@ -12,13 +12,14 @@ import api from '@/utils/api';
 const EnhancedAuthPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login, setTokenFromStorage } = useAuth();
   const [loading, setLoading] = useState(false);
   
   const defaultTab = searchParams.get('mode') === 'signup' ? 'signup' : 'login';
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [signupForm, setSignupForm] = useState({
+    username: '',
     email: '',
     password: '',
     full_name: '',
@@ -27,6 +28,16 @@ const EnhancedAuthPage = () => {
     gender: 'prefer_not_to_say',
     role: 'USER'
   });
+
+  const getRequestErrorMessage = (error, fallback) => {
+    if (error?.code === 'ECONNABORTED') {
+      return 'Request timed out. Please ensure backend is running on localhost:8000.';
+    }
+    if (error?.code === 'ERR_NETWORK') {
+      return 'Network error. Please check backend server and CORS config.';
+    }
+    return error?.response?.data?.detail || fallback;
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -43,7 +54,7 @@ const EnhancedAuthPage = () => {
         navigate('/admin');
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Login failed');
+      toast.error(getRequestErrorMessage(error, 'Login failed'));
     } finally {
       setLoading(false);
     }
@@ -56,7 +67,7 @@ const EnhancedAuthPage = () => {
       const response = await api.post('/auth/signup', signupForm);
       const { token, user } = response.data;
       
-      localStorage.setItem('token', token);
+      setTokenFromStorage(token);
       toast.success('Account created! Please check your email to verify.');
       
       if (user.role === 'USER') {
@@ -65,7 +76,7 @@ const EnhancedAuthPage = () => {
         navigate('/partner-signup');
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Signup failed');
+      toast.error(getRequestErrorMessage(error, 'Signup failed'));
     } finally {
       setLoading(false);
     }
@@ -156,6 +167,21 @@ const EnhancedAuthPage = () => {
                     required
                     className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="username" className="text-sm font-medium mb-2 block">Username</Label>
+                  <Input
+                    id="username"
+                    data-testid="username-input"
+                    type="text"
+                    placeholder="yourname"
+                    value={signupForm.username}
+                    onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                    required
+                    className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Your Lynkr email will be {signupForm.username || 'username'}@lynkr.club</p>
                 </div>
                 
                 <div>

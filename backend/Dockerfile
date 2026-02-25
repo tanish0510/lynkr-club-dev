@@ -1,29 +1,31 @@
+# Stage 1: install deps (build tools only here)
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ python3-dev libffi-dev libssl-dev libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: minimal runtime (no gcc/g++, smaller image = faster push)
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies required for Python packages
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    python3-dev \
-    libffi-dev \
-    libssl-dev \
-    libpq-dev \
+# Runtime libs only if needed (e.g. for pq)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip and setuptools
-RUN pip install --upgrade pip setuptools wheel
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY server.py .
+COPY app ./app
 
-# Expose port
 EXPOSE 8000
-
-# Run the application
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
