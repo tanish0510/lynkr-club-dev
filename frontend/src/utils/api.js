@@ -1,20 +1,18 @@
 import axios from 'axios';
 
-// ALWAYS use window.location.origin in production (browser runtime)
-// This ensures API calls go to the current domain (lynkr.club) regardless of build-time env vars
-// The build-time REACT_APP_BACKEND_URL is only used for development
-const BACKEND_URL = window.location.origin;
+// Local dev: use VITE_BACKEND_URL (or fallback to localhost:8000) so /api hits backend.
+// Production: default to current origin (https://lynkr.club).
+const BACKEND_URL =
+  typeof import.meta !== "undefined" && import.meta.env.VITE_BACKEND_URL
+    ? import.meta.env.VITE_BACKEND_URL
+    : typeof import.meta !== "undefined" && import.meta.env.DEV
+      ? "http://localhost:8000"
+    : window.location.origin;
 export const API_URL = `${BACKEND_URL}/api`;
-
-// Debug: Log the API URL to verify it's correct
-if (typeof window !== 'undefined') {
-  console.log('[API Config] BACKEND_URL:', BACKEND_URL);
-  console.log('[API Config] API_URL:', API_URL);
-  console.log('[API Config] window.location.origin:', window.location.origin);
-}
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
 });
 
 // Add token to requests

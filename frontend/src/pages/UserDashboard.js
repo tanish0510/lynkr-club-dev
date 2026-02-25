@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { TrendingUp, Gift, Mail, Sparkles, LogOut, Copy, MessageCircle } from 'lucide-react';
+import { TrendingUp, Gift, Mail, Sparkles, LogOut, Copy, MessageCircle, Trophy } from 'lucide-react';
 import api from '@/utils/api';
 
 const UserDashboard = () => {
@@ -90,6 +90,15 @@ const UserDashboard = () => {
             >
               <Gift className="mr-2 w-4 h-4" />
               Rewards
+            </Button>
+            <Button
+              data-testid="community-nav-button"
+              variant="ghost"
+              className="hover:bg-white/5 rounded-full"
+              onClick={() => navigate('/community')}
+            >
+              <Trophy className="mr-2 w-4 h-4" />
+              Community
             </Button>
             <Button
               data-testid="settings-nav-button"

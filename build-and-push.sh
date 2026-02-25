@@ -1,54 +1,77 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Build and push backend + frontend images to Docker Hub.
+# Usage:
+#   ./build-and-push.sh <docker-hub-username> [backend_url]
+# Example:
+#   ./build-and-push.sh tanish0510 https://lynkr.club
 
-# Script to build and push Docker images to Docker Hub
-# Usage: ./build-and-push.sh <docker-hub-username>
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-DOCKER_HUB_USERNAME=${1:-"tanish0510"}
-
-if [ "$DOCKER_HUB_USERNAME" == "yourusername" ]; then
-    echo "Error: Please provide your Docker Hub username"
-    echo "Usage: ./build-and-push.sh <docker-hub-username>"
-    exit 1
+DOCKER_HUB_USERNAME="${1:-${DOCKER_HUB_USERNAME:-}}"
+if [ -z "$DOCKER_HUB_USERNAME" ]; then
+  echo "Error: Docker Hub username is required."
+  echo "Usage: ./build-and-push.sh <docker-hub-username> [backend_url]"
+  exit 1
 fi
 
-echo "Building and pushing images to Docker Hub as: $DOCKER_HUB_USERNAME"
-echo ""
+BACKEND_URL="${2:-${VITE_BACKEND_URL:-https://lynkr.club}}"
+PLATFORM="${PLATFORM:-linux/amd64}"
 
-# Login to Docker Hub
+BACKEND_TAG="${DOCKER_HUB_USERNAME}/lynkr-backend:latest"
+FRONTEND_TAG="${DOCKER_HUB_USERNAME}/lynkr-frontend:latest"
+
+echo "Docker Hub username: $DOCKER_HUB_USERNAME"
+echo "Backend image tag:   $BACKEND_TAG"
+echo "Frontend image tag:  $FRONTEND_TAG"
+echo "Frontend backend URL: $BACKEND_URL"
+echo "Build platform:      $PLATFORM"
+echo
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: docker is not installed."
+  exit 1
+fi
+
+echo "Checking buildx builder..."
+if ! docker buildx ls >/dev/null 2>&1; then
+  echo "Error: docker buildx is unavailable."
+  exit 1
+fi
+
+# Ensure a usable buildx builder exists
+if ! docker buildx inspect lynkr-builder >/dev/null 2>&1; then
+  docker buildx create --name lynkr-builder --use
+else
+  docker buildx use lynkr-builder
+fi
+docker buildx inspect --bootstrap >/dev/null
+
 echo "Logging in to Docker Hub..."
 docker login
+echo
 
-# Setup buildx for multi-platform builds
-echo "Setting up Docker buildx..."
-docker buildx create --use --name multiarch-builder 2>/dev/null || docker buildx use multiarch-builder
+echo "Building and pushing backend..."
+docker buildx build \
+  --platform "$PLATFORM" \
+  -t "$BACKEND_TAG" \
+  -f backend/Dockerfile backend \
+  --push
+echo
 
-# Build and push backend (for linux/amd64 platform)
-echo ""
-echo "Building backend image for linux/amd64..."
-cd backend
-docker buildx build --platform linux/amd64 -t ${DOCKER_HUB_USERNAME}/lynkr-backend:latest --push .
-cd ..
+echo "Building and pushing frontend..."
+docker buildx build \
+  --platform "$PLATFORM" \
+  -t "$FRONTEND_TAG" \
+  --build-arg REACT_APP_BACKEND_URL="$BACKEND_URL" \
+  --build-arg VITE_BACKEND_URL="$BACKEND_URL" \
+  -f frontend/Dockerfile.prod frontend \
+  --push
+echo
 
-# Build and push frontend (for linux/amd64 platform)
-echo ""
-echo "Building frontend image for linux/amd64..."
-cd frontend
-
-# Get backend URL from environment or use default
-REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL:-https://lynkr.club}
-
-echo "Building with REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL}"
-docker buildx build --platform linux/amd64 -f Dockerfile.prod --build-arg REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL} -t ${DOCKER_HUB_USERNAME}/lynkr-frontend:latest --push .
-cd ..
-
-echo ""
-echo "✅ All images built and pushed successfully!"
-echo ""
-echo "Images pushed:"
-echo "  - ${DOCKER_HUB_USERNAME}/lynkr-backend:latest"
-echo "  - ${DOCKER_HUB_USERNAME}/lynkr-frontend:latest"
-echo ""
-echo "To use on your VM, set DOCKER_HUB_USERNAME=${DOCKER_HUB_USERNAME} in your .env file"
-echo "Then run: docker-compose -f docker-compose.prod.yml up -d"
+echo "Done. Images pushed:"
+echo "  $BACKEND_TAG"
+echo "  $FRONTEND_TAG"
+echo

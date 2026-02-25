@@ -8,13 +8,17 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import asyncio
+import re
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta, date
+import httpx
 from passlib.context import CryptContext
 import jwt
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError, OperationFailure
 # Optional import for emergentintegrations (not available on PyPI)
 try:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -27,7 +31,10 @@ import json
 import resend
 from openai import AsyncOpenAI
 
+
 ROOT_DIR = Path(__file__).parent
+# Load project root .env first (e.g. lynkr-club-dev/.env), then backend/.env
+load_dotenv(ROOT_DIR.parent / '.env')
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
@@ -44,6 +51,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 resend.api_key = os.environ.get('RESEND_API_KEY')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://lynkr.club')
+
+# Zoho Mail provisioning configuration
+ZOHO_MAIL_ENABLED = (os.environ.get("ZOHO_MAIL_ENABLED", "0") or "0").strip().lower() in ("1", "true", "yes", "on")
+ZOHO_MAIL_REQUIRED_ON_SIGNUP = (os.environ.get("ZOHO_MAIL_REQUIRED_ON_SIGNUP", "0") or "0").strip().lower() in ("1", "true", "yes", "on")
+ZOHO_MAIL_API_BASE = (os.environ.get("ZOHO_MAIL_API_BASE", "https://mail.zoho.com/api") or "").rstrip("/")
+ZOHO_MAIL_ORG_ID = (os.environ.get("ZOHO_MAIL_ORG_ID", "") or "").strip()
+ZOHO_MAIL_DOMAIN = (os.environ.get("ZOHO_MAIL_DOMAIN", "lynkr.club") or "lynkr.club").strip().lower()
+ZOHO_MAIL_OAUTH_TOKEN = (os.environ.get("ZOHO_MAIL_OAUTH_TOKEN", "") or "").strip()
 
 # OpenAI Configuration
 openai_client = AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
@@ -63,8 +78,7 @@ app = FastAPI(
 )
 api_router = APIRouter(prefix="/api")
 
-# Root API endpoint - handle both /api and /api/
-@api_router.get("")
+# Root API endpoint
 @api_router.get("/")
 async def api_root():
     return {
@@ -107,6 +121,7 @@ class SpendingCategory:
 
 # User Models
 class UserSignup(BaseModel):
+    username: str
     email: EmailStr
     password: str
     full_name: str
@@ -125,6 +140,7 @@ class User(BaseModel):
     email: EmailStr
     password_hash: str
     full_name: str
+    username: Optional[str] = None
     phone: str
     dob: str
     gender: str
@@ -152,6 +168,7 @@ class UserResponse(BaseModel):
     id: str
     email: str
     full_name: str
+    username: Optional[str] = None
     phone: str
     dob: str
     gender: str
@@ -223,6 +240,82 @@ class PointsLedger(BaseModel):
     description: str
     balance_after: int
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class UserPointsUpdate(BaseModel):
+    operation: str  # add | subtract | set
+    points: int
+    reason: Optional[str] = None
+
+
+class CouponValueType:
+    PERCENTAGE = "percentage"
+    FIXED = "fixed"
+
+
+class CouponCreate(BaseModel):
+    partner_id: str
+    title: str
+    description: str
+    coupon_code: str
+    value_type: str  # percentage | fixed
+    value: float
+    min_purchase: Optional[float] = None
+    points_cost: int
+    expiry_date: datetime
+    total_quantity: int
+    is_active: bool = True
+    coupon_type: str = "partner_specific"
+    user_limit: int = 1
+    campaign_tag: Optional[str] = None
+
+
+class CouponUpdate(BaseModel):
+    partner_id: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    coupon_code: Optional[str] = None
+    value_type: Optional[str] = None
+    value: Optional[float] = None
+    min_purchase: Optional[float] = None
+    points_cost: Optional[int] = None
+    expiry_date: Optional[datetime] = None
+    total_quantity: Optional[int] = None
+    is_active: Optional[bool] = None
+    coupon_type: Optional[str] = None
+    user_limit: Optional[int] = None
+    campaign_tag: Optional[str] = None
+
+
+class Coupon(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    partner_id: str
+    title: str
+    description: str
+    coupon_code: str
+    value_type: str  # percentage | fixed
+    value: float
+    min_purchase: Optional[float] = None
+    points_cost: int
+    expiry_date: datetime
+    total_quantity: int
+    redeemed_count: int = 0
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    coupon_type: str = "partner_specific"
+    user_limit: int = 1
+    campaign_tag: Optional[str] = None
+
+
+class Redemption(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    coupon_id: str
+    coupon_code: str
+    redeemed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    points_deducted: int
 
 # Partner Models
 class PartnerSignup(BaseModel):
@@ -345,9 +438,12 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-def generate_lynkr_email(user_id: str) -> str:
-    short_id = user_id[:8]
-    return f"user{short_id}@lynkr.club"
+def generate_lynkr_email(username: str) -> str:
+    return f"{username}@{ZOHO_MAIL_DOMAIN}"
+
+
+def normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
 
 def generate_verification_token() -> str:
     return str(uuid.uuid4())
@@ -357,6 +453,67 @@ def generate_random_password(length: int = 12) -> str:
     import string
     characters = string.ascii_letters + string.digits + "!@#$%"
     return ''.join(random.choice(characters) for _ in range(length))
+
+
+def _split_name(full_name: str) -> tuple[str, str]:
+    parts = [p for p in (full_name or "").strip().split(" ") if p]
+    if not parts:
+        return ("Lynkr", "User")
+    if len(parts) == 1:
+        return (parts[0], "User")
+    return (parts[0], " ".join(parts[1:]))
+
+
+async def provision_zoho_mailbox_if_enabled(username: str, full_name: str, email_address: str) -> bool:
+    if not ZOHO_MAIL_ENABLED:
+        return False
+
+    missing = []
+    if not ZOHO_MAIL_ORG_ID:
+        missing.append("ZOHO_MAIL_ORG_ID")
+    if not ZOHO_MAIL_OAUTH_TOKEN:
+        missing.append("ZOHO_MAIL_OAUTH_TOKEN")
+    if missing:
+        logging.warning("Zoho mailbox provisioning skipped; missing env keys: %s", ",".join(missing))
+        return False
+
+    first_name, last_name = _split_name(full_name)
+    # Temporary mailbox password (used only for account creation in Zoho).
+    temp_password = generate_random_password(16)
+    payload = {
+        "primaryEmailAddress": email_address,
+        "displayName": full_name or username,
+        "userName": username,
+        "firstName": first_name,
+        "lastName": last_name,
+        "password": temp_password,
+    }
+    headers = {
+        "Authorization": f"Zoho-oauthtoken {ZOHO_MAIL_OAUTH_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    endpoint_candidates = [
+        f"{ZOHO_MAIL_API_BASE}/organization/{ZOHO_MAIL_ORG_ID}/accounts",
+        f"{ZOHO_MAIL_API_BASE}/organization/{ZOHO_MAIL_ORG_ID}/account",
+    ]
+
+    async with httpx.AsyncClient(timeout=20.0) as client_http:
+        for endpoint in endpoint_candidates:
+            try:
+                response = await client_http.post(endpoint, headers=headers, json=payload)
+                if 200 <= response.status_code < 300:
+                    logging.info("Zoho mailbox provisioned for %s", email_address)
+                    return True
+
+                body = response.text.lower()
+                if response.status_code in (400, 409) and ("exist" in body or "duplicate" in body):
+                    logging.info("Zoho mailbox already exists for %s", email_address)
+                    return True
+            except Exception as e:
+                logging.warning("Zoho mailbox provisioning attempt failed (%s): %s", endpoint, e)
+
+    logging.error("Zoho mailbox provisioning failed for %s", email_address)
+    return False
 
 async def send_verification_email(email: str, token: str, user_name: str):
     verification_link = f"{FRONTEND_URL}/verify-email?token={token}"
@@ -422,22 +579,94 @@ async def require_role(user: User, required_role: str):
     if user.role != required_role:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
+
+def _validate_coupon_payload(payload: Dict[str, Any]):
+    now = datetime.now(timezone.utc)
+    value_type = payload.get("value_type")
+    if value_type and value_type not in (CouponValueType.FIXED, CouponValueType.PERCENTAGE):
+        raise HTTPException(status_code=400, detail="value_type must be 'percentage' or 'fixed'")
+    if payload.get("value") is not None and payload["value"] <= 0:
+        raise HTTPException(status_code=400, detail="value must be > 0")
+    if payload.get("total_quantity") is not None and payload["total_quantity"] <= 0:
+        raise HTTPException(status_code=400, detail="total_quantity must be > 0")
+    if payload.get("points_cost") is not None and payload["points_cost"] <= 0:
+        raise HTTPException(status_code=400, detail="points_cost must be > 0")
+    if payload.get("min_purchase") is not None and payload["min_purchase"] < 0:
+        raise HTTPException(status_code=400, detail="min_purchase must be >= 0")
+    if payload.get("user_limit") is not None and payload["user_limit"] <= 0:
+        raise HTTPException(status_code=400, detail="user_limit must be > 0")
+    if payload.get("expiry_date") is not None and payload["expiry_date"] <= now:
+        raise HTTPException(status_code=400, detail="expiry_date must be in the future")
+
+
+async def _hydrate_coupon_partners(coupons: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not coupons:
+        return []
+    partner_ids = sorted({c.get("partner_id") for c in coupons if c.get("partner_id")})
+    partners = await db.partners.find({"id": {"$in": partner_ids}}, {"_id": 0}).to_list(len(partner_ids))
+    partner_map = {p["id"]: p for p in partners}
+    hydrated = []
+    for coupon in coupons:
+        partner = partner_map.get(coupon.get("partner_id"), {})
+        remaining = max(0, int(coupon.get("total_quantity", 0)) - int(coupon.get("redeemed_count", 0)))
+        item = {
+            **coupon,
+            "partner_name": partner.get("business_name"),
+            "partner_logo": partner.get("logo"),
+            "remaining_quantity": remaining,
+        }
+        hydrated.append(item)
+    return hydrated
+
+
+def _mask_username(full_name: Optional[str], email: Optional[str], user_id: str) -> str:
+    source = (full_name or "").strip() or (email or "").split("@")[0].strip() or f"user{user_id[:4]}"
+    clean = "".join(ch for ch in source if ch.isalnum() or ch in ("_", "-"))
+    if len(clean) <= 2:
+        masked_core = clean[0] + "*" if clean else "u*"
+    elif len(clean) <= 5:
+        masked_core = clean[0] + ("*" * (len(clean) - 2)) + clean[-1]
+    else:
+        masked_core = clean[:2] + ("*" * (len(clean) - 4)) + clean[-2:]
+    return f"{masked_core}_{user_id[:4]}"
+
 # ============ AUTH ENDPOINTS ============
 
 @api_router.post("/auth/signup")
 async def signup(user_data: UserSignup):
+    normalized_email = normalize_email(str(user_data.email))
+    username = (user_data.username or "").strip().lower()
+    if not re.fullmatch(r"[a-z0-9_]{3,30}", username):
+        raise HTTPException(
+            status_code=400,
+            detail="Username must be 3-30 chars and contain only lowercase letters, numbers, or underscore",
+        )
+
     # Check if user exists
-    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    existing = await db.users.find_one({"email": normalized_email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+
+    username_taken = await db.users.find_one(
+        {
+            "$or": [
+                {"username": username},
+                {"lynkr_email": generate_lynkr_email(username)},
+            ]
+        },
+        {"_id": 0, "id": 1},
+    )
+    if username_taken:
+        raise HTTPException(status_code=400, detail="Username is already taken")
     
     verification_token = generate_verification_token()
     
     # Create user
     user = User(
-        email=user_data.email,
+        email=normalized_email,
         password_hash=hash_password(user_data.password),
         full_name=user_data.full_name,
+        username=username,
         phone=user_data.phone,
         dob=user_data.dob.isoformat(),
         gender=user_data.gender,
@@ -445,7 +674,18 @@ async def signup(user_data: UserSignup):
         lynkr_email="",
         verification_token=verification_token
     )
-    user.lynkr_email = generate_lynkr_email(user.id)
+    user.lynkr_email = generate_lynkr_email(username)
+
+    zoho_provisioned = await provision_zoho_mailbox_if_enabled(
+        username=username,
+        full_name=user.full_name,
+        email_address=user.lynkr_email,
+    )
+    if ZOHO_MAIL_ENABLED and ZOHO_MAIL_REQUIRED_ON_SIGNUP and not zoho_provisioned:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to provision Lynkr mailbox right now. Please try again.",
+        )
     
     doc = user.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -463,6 +703,7 @@ async def signup(user_data: UserSignup):
             id=user.id,
             email=user.email,
             full_name=user.full_name,
+            username=user.username,
             phone=user.phone,
             dob=user.dob,
             gender=user.gender,
@@ -507,7 +748,14 @@ async def resend_verification(user: User = Depends(get_current_user)):
 
 @api_router.post("/auth/login")
 async def login(login_data: UserLogin):
-    user = await db.users.find_one({"email": login_data.email}, {"_id": 0})
+    normalized_email = normalize_email(str(login_data.email))
+    user = await db.users.find_one({"email": normalized_email}, {"_id": 0})
+    if not user:
+        # Backward compatibility for older records with mixed-case email.
+        user = await db.users.find_one(
+            {"email": {"$regex": f"^{re.escape(normalized_email)}$", "$options": "i"}},
+            {"_id": 0},
+        )
     if not user or not verify_password(login_data.password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -519,6 +767,7 @@ async def login(login_data: UserLogin):
             id=user['id'],
             email=user['email'],
             full_name=user['full_name'],
+            username=user.get('username'),
             phone=user['phone'],
             dob=user['dob'],
             gender=user['gender'],
@@ -541,6 +790,7 @@ async def get_current_user_info(user: User = Depends(get_current_user)):
         id=user.id,
         email=user.email,
         full_name=user.full_name,
+        username=user.username,
         phone=user.phone,
         dob=user.dob,
         gender=user.gender,
@@ -643,11 +893,23 @@ async def get_dashboard(user: User = Depends(get_current_user)):
         {"_id": 0}
     ).sort("timestamp", -1).limit(5).to_list(5)
     
-    # Get available rewards (mocked)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    coupon_docs = await db.coupons.find(
+        {
+            "is_active": True,
+            "expiry_date": {"$gt": now_iso},
+            "$expr": {"$lt": ["$redeemed_count", "$total_quantity"]},
+        },
+        {"_id": 0}
+    ).sort("created_at", -1).limit(12).to_list(12)
     rewards = [
-        {"id": "1", "name": "Amazon ₹500 Gift Card", "points": 500, "value": "500"},
-        {"id": "2", "name": "Flipkart ₹1000 Gift Card", "points": 950, "value": "1000"},
-        {"id": "3", "name": "Myntra ₹250 Gift Card", "points": 250, "value": "250"}
+        {
+            "id": c["id"],
+            "name": c["title"],
+            "points": c["points_cost"],
+            "value": c["value"],
+        }
+        for c in coupon_docs
     ]
     
     return {
@@ -804,6 +1066,16 @@ Keep insights friendly and non-technical."""
 
 # ============ AI CHATBOT ENDPOINTS ============
 
+def _get_chat_llm():
+    """Use Gemini if GEMINI_API_KEY is set, else OpenAI. Avoids OpenAI quota errors when using Gemini."""
+    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if gemini_key:
+        from app.ai.llm_client import GeminiClient
+        model = os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.0-flash").strip()
+        return ("gemini", GeminiClient(api_key=gemini_key, model=model))
+    return ("openai", None)
+
+
 @api_router.post("/chat", response_model=ChatResponse)
 async def chat_with_ai(request: ChatRequest, user: User = Depends(get_current_user)):
     # Get user context
@@ -819,7 +1091,7 @@ async def chat_with_ai(request: ChatRequest, user: User = Depends(get_current_us
     ).sort("timestamp", -1).limit(10).to_list(10)
     chat_history.reverse()
     
-    # Build context
+    # Build context (system prompt)
     context = f"""You are Lynkr AI Assistant - a helpful, friendly shopping and rewards advisor.
 
 User Info:
@@ -839,57 +1111,79 @@ Your capabilities:
 
 Be conversational, helpful, and concise. Use emojis sparingly."""
     
-    # Build messages for OpenAI
-    messages = [{"role": "system", "content": context}]
+    llm_type, gemini_client = _get_chat_llm()
+    assistant_message = None
+
+    if llm_type == "gemini" and gemini_client:
+        # Use Gemini only (no fallback to OpenAI to avoid quota errors)
+        try:
+            conv = []
+            for msg in chat_history:
+                conv.append(f"{msg['role'].upper()}: {msg['content']}")
+            conv.append(f"USER: {request.message}")
+            prompt = "\n\n".join(conv) if conv else request.message
+            raw = await gemini_client.complete(
+                prompt,
+                system_prompt=context,
+                max_tokens=500,
+                temperature=0.7,
+            )
+            assistant_message = (raw if isinstance(raw, str) else str(raw)).strip()
+        except Exception as e:
+            logging.error("Gemini chat failed: %s", e)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Gemini chat failed: {str(e)}. Check GEMINI_API_KEY and try again.",
+            )
+
+    if llm_type == "openai":
+        # Use OpenAI (only if key is set)
+        if openai_client and os.environ.get("OPENAI_API_KEY"):
+            messages = [{"role": "system", "content": context}]
+            for msg in chat_history:
+                messages.append({"role": msg['role'], "content": msg['content']})
+            messages.append({"role": "user", "content": request.message})
+            try:
+                response = await openai_client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages,
+                    max_tokens=500,
+                    temperature=0.7
+                )
+                assistant_message = response.choices[0].message.content
+            except Exception as e:
+                logging.error("Chat error: %s", e)
+                raise HTTPException(status_code=500, detail=f"Chat service unavailable: {str(e)}")
+
+    if not assistant_message:
+        raise HTTPException(status_code=503, detail="No chat provider available. Set GEMINI_API_KEY or OPENAI_API_KEY.")
+
+    # Save user message
+    user_msg = ChatMessage(
+        user_id=user.id,
+        role="user",
+        content=request.message
+    )
+    user_doc = user_msg.model_dump()
+    user_doc['timestamp'] = user_doc['timestamp'].isoformat()
+    await db.chat_messages.insert_one(user_doc)
     
-    # Add chat history
-    for msg in chat_history:
-        messages.append({"role": msg['role'], "content": msg['content']})
+    # Save assistant message
+    assistant_msg = ChatMessage(
+        user_id=user.id,
+        role="assistant",
+        content=assistant_message
+    )
+    assistant_doc = assistant_msg.model_dump()
+    assistant_doc['timestamp'] = assistant_doc['timestamp'].isoformat()
+    await db.chat_messages.insert_one(assistant_doc)
     
-    # Add current message
-    messages.append({"role": "user", "content": request.message})
-    
-    # Call OpenAI
-    try:
-        response = await openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            max_tokens=500,
-            temperature=0.7
-        )
-        
-        assistant_message = response.choices[0].message.content
-        
-        # Save user message
-        user_msg = ChatMessage(
-            user_id=user.id,
-            role="user",
-            content=request.message
-        )
-        user_doc = user_msg.model_dump()
-        user_doc['timestamp'] = user_doc['timestamp'].isoformat()
-        await db.chat_messages.insert_one(user_doc)
-        
-        # Save assistant message
-        assistant_msg = ChatMessage(
-            user_id=user.id,
-            role="assistant",
-            content=assistant_message
-        )
-        assistant_doc = assistant_msg.model_dump()
-        assistant_doc['timestamp'] = assistant_doc['timestamp'].isoformat()
-        await db.chat_messages.insert_one(assistant_doc)
-        
-        return ChatResponse(
-            id=assistant_msg.id,
-            role="assistant",
-            content=assistant_message,
-            timestamp=assistant_msg.timestamp.isoformat()
-        )
-    
-    except Exception as e:
-        logging.error(f"Chat error: {e}")
-        raise HTTPException(status_code=500, detail=f"Chat service unavailable: {str(e)}")
+    return ChatResponse(
+        id=assistant_msg.id,
+        role="assistant",
+        content=assistant_message,
+        timestamp=assistant_msg.timestamp.isoformat()
+    )
 
 @api_router.get("/chat/history")
 async def get_chat_history(user: User = Depends(get_current_user)):
@@ -922,6 +1216,246 @@ async def get_points_ledger(user: User = Depends(get_current_user)):
     ).sort("created_at", -1).limit(50).to_list(50)
     
     return ledger
+
+
+@api_router.get("/points/leaderboard")
+async def get_points_leaderboard(user: User = Depends(get_current_user)):
+    top_users = await db.users.find(
+        {"role": UserRole.USER},
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "points": 1}
+    ).sort("points", -1).limit(20).to_list(20)
+
+    if not top_users:
+        return []
+
+    user_ids = [u["id"] for u in top_users]
+    redemption_counts = await db.redemptions.aggregate([
+        {"$match": {"user_id": {"$in": user_ids}}},
+        {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
+    ]).to_list(100)
+    redemption_map = {r["_id"]: int(r["count"]) for r in redemption_counts}
+
+    latest_ledger_entries = await db.points_ledger.aggregate([
+        {"$match": {"user_id": {"$in": user_ids}}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {"_id": "$user_id", "entry": {"$first": "$$ROOT"}}},
+    ]).to_list(100)
+    ledger_map = {row["_id"]: row["entry"] for row in latest_ledger_entries}
+
+    leaderboard = []
+    for idx, u in enumerate(top_users, start=1):
+        last_entry = ledger_map.get(u["id"], {})
+        leaderboard.append({
+            "rank": idx,
+            "user_id": u["id"],
+            "masked_username": _mask_username(u.get("full_name"), u.get("email"), u["id"]),
+            "points": int(u.get("points", 0)),
+            "coupons_redeemed": redemption_map.get(u["id"], 0),
+            "last_activity": {
+                "type": last_entry.get("type"),
+                "description": last_entry.get("description"),
+                "created_at": last_entry.get("created_at"),
+            } if last_entry else None,
+        })
+
+    return leaderboard
+
+
+@api_router.post("/admin/coupons")
+async def create_coupon(coupon_data: CouponCreate, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    payload = coupon_data.model_dump()
+    _validate_coupon_payload(payload)
+
+    partner = await db.partners.find_one({"id": payload["partner_id"]}, {"_id": 0, "id": 1})
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    exists = await db.coupons.find_one({"coupon_code": payload["coupon_code"]}, {"_id": 0, "id": 1})
+    if exists:
+        raise HTTPException(status_code=400, detail="Coupon code already exists")
+
+    coupon = Coupon(**payload)
+    doc = coupon.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    doc["expiry_date"] = coupon.expiry_date.isoformat()
+    await db.coupons.insert_one(doc)
+    return {"success": True, "coupon": doc}
+
+
+@api_router.get("/admin/coupons")
+async def get_admin_coupons(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    coupons = await db.coupons.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    hydrated = await _hydrate_coupon_partners(coupons)
+    return hydrated
+
+
+@api_router.patch("/admin/coupons/{coupon_id}")
+async def update_coupon(coupon_id: str, coupon_update: CouponUpdate, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    updates = coupon_update.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    _validate_coupon_payload(updates)
+
+    if updates.get("partner_id"):
+        partner = await db.partners.find_one({"id": updates["partner_id"]}, {"_id": 0, "id": 1})
+        if not partner:
+            raise HTTPException(status_code=404, detail="Partner not found")
+
+    if updates.get("coupon_code"):
+        existing = await db.coupons.find_one(
+            {"coupon_code": updates["coupon_code"], "id": {"$ne": coupon_id}},
+            {"_id": 0, "id": 1}
+        )
+        if existing:
+            raise HTTPException(status_code=400, detail="Coupon code already exists")
+
+    if updates.get("expiry_date"):
+        updates["expiry_date"] = updates["expiry_date"].isoformat()
+
+    if updates.get("total_quantity") is not None:
+        current = await db.coupons.find_one({"id": coupon_id}, {"_id": 0, "redeemed_count": 1})
+        if not current:
+            raise HTTPException(status_code=404, detail="Coupon not found")
+        if updates["total_quantity"] < int(current.get("redeemed_count", 0)):
+            raise HTTPException(status_code=400, detail="total_quantity cannot be lower than redeemed_count")
+
+    result = await db.coupons.update_one({"id": coupon_id}, {"$set": updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Coupon not found")
+
+    coupon = await db.coupons.find_one({"id": coupon_id}, {"_id": 0})
+    hydrated = await _hydrate_coupon_partners([coupon])
+    return {"success": True, "coupon": hydrated[0]}
+
+
+@api_router.delete("/admin/coupons/{coupon_id}")
+async def delete_coupon(coupon_id: str, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    result = await db.coupons.delete_one({"id": coupon_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Coupon not found")
+    return {"success": True}
+
+
+@api_router.get("/coupons")
+async def get_available_coupons(user: User = Depends(get_current_user)):
+    now_iso = datetime.now(timezone.utc).isoformat()
+    coupons = await db.coupons.find(
+        {
+            "is_active": True,
+            "expiry_date": {"$gt": now_iso},
+            "$expr": {"$lt": ["$redeemed_count", "$total_quantity"]},
+        },
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(500)
+    hydrated = await _hydrate_coupon_partners(coupons)
+    return hydrated
+
+
+@api_router.get("/coupons/redemptions")
+async def get_user_coupon_redemptions(user: User = Depends(get_current_user)):
+    redemptions = await db.redemptions.find(
+        {"user_id": user.id},
+        {"_id": 0}
+    ).sort("redeemed_at", -1).to_list(200)
+
+    if not redemptions:
+        return []
+
+    coupon_ids = sorted({r.get("coupon_id") for r in redemptions if r.get("coupon_id")})
+    coupons = await db.coupons.find({"id": {"$in": coupon_ids}}, {"_id": 0}).to_list(len(coupon_ids))
+    coupon_map = {c["id"]: c for c in coupons}
+
+    partner_ids = sorted({c.get("partner_id") for c in coupons if c.get("partner_id")})
+    partners = await db.partners.find({"id": {"$in": partner_ids}}, {"_id": 0}).to_list(len(partner_ids))
+    partner_map = {p["id"]: p for p in partners}
+
+    result = []
+    for redemption in redemptions:
+        coupon = coupon_map.get(redemption.get("coupon_id"), {})
+        partner = partner_map.get(coupon.get("partner_id"), {})
+        result.append({
+            **redemption,
+            "coupon_title": coupon.get("title"),
+            "partner_name": partner.get("business_name"),
+            "value_type": coupon.get("value_type"),
+            "value": coupon.get("value"),
+        })
+    return result
+
+
+@api_router.post("/coupons/{coupon_id}/redeem")
+async def redeem_coupon(coupon_id: str, user: User = Depends(get_current_user)):
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    coupon = await db.coupons.find_one_and_update(
+        {
+            "id": coupon_id,
+            "is_active": True,
+            "expiry_date": {"$gt": now_iso},
+            "$expr": {"$lt": ["$redeemed_count", "$total_quantity"]},
+        },
+        {"$inc": {"redeemed_count": 1}},
+        projection={"_id": 0},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not coupon:
+        raise HTTPException(status_code=400, detail="Coupon unavailable, expired, or out of stock")
+
+    user_redemption_count = await db.redemptions.count_documents({"user_id": user.id, "coupon_id": coupon_id})
+    user_limit = int(coupon.get("user_limit", 1))
+    if user_redemption_count >= user_limit:
+        await db.coupons.update_one({"id": coupon_id}, {"$inc": {"redeemed_count": -1}})
+        raise HTTPException(status_code=400, detail="User redemption limit reached for this coupon")
+
+    points_cost = int(coupon["points_cost"])
+    updated_user = await db.users.find_one_and_update(
+        {"id": user.id, "points": {"$gte": points_cost}},
+        {"$inc": {"points": -points_cost}},
+        projection={"_id": 0, "id": 1, "points": 1},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not updated_user:
+        await db.coupons.update_one({"id": coupon_id}, {"$inc": {"redeemed_count": -1}})
+        raise HTTPException(status_code=400, detail="Insufficient points")
+
+    redemption = Redemption(
+        user_id=user.id,
+        coupon_id=coupon_id,
+        coupon_code=str(coupon.get("coupon_code", "")),
+        points_deducted=points_cost,
+    )
+    redemption_doc = redemption.model_dump()
+    redemption_doc["redeemed_at"] = redemption.redeemed_at.isoformat()
+    try:
+        await db.redemptions.insert_one(redemption_doc)
+    except DuplicateKeyError:
+        await db.coupons.update_one({"id": coupon_id}, {"$inc": {"redeemed_count": -1}})
+        await db.users.update_one({"id": user.id}, {"$inc": {"points": points_cost}})
+        raise HTTPException(status_code=400, detail="Coupon already redeemed by this user")
+
+    ledger_entry = PointsLedger(
+        user_id=user.id,
+        type="COUPON_REDEMPTION",
+        amount=points_cost,
+        description=f"Coupon redeemed: {coupon.get('title')} ({coupon.get('coupon_code')})",
+        balance_after=int(updated_user["points"]),
+    )
+    ledger_doc = ledger_entry.model_dump()
+    ledger_doc["created_at"] = ledger_entry.created_at.isoformat()
+    await db.points_ledger.insert_one(ledger_doc)
+
+    return {
+        "success": True,
+        "coupon_id": coupon_id,
+        "coupon_code": coupon.get("coupon_code"),
+        "points_deducted": points_cost,
+        "new_balance": int(updated_user["points"]),
+        "remaining_quantity": max(0, int(coupon.get("total_quantity", 0)) - int(coupon.get("redeemed_count", 0))),
+    }
 
 @api_router.post("/points/redeem")
 async def redeem_points(reward_id: str, points: int, user: User = Depends(get_current_user)):
@@ -960,11 +1494,20 @@ async def redeem_points(reward_id: str, points: int, user: User = Depends(get_cu
 
 @api_router.post("/partner/auth/login")
 async def partner_email_password_login(login_data: UserLogin):
+    normalized_email = normalize_email(str(login_data.email))
     # Find partner user
     user = await db.users.find_one(
-        {"email": login_data.email, "role": UserRole.PARTNER},
+        {"email": normalized_email, "role": UserRole.PARTNER},
         {"_id": 0}
     )
+    if not user:
+        user = await db.users.find_one(
+            {
+                "role": UserRole.PARTNER,
+                "email": {"$regex": f"^{re.escape(normalized_email)}$", "$options": "i"},
+            },
+            {"_id": 0},
+        )
     
     if not user or not verify_password(login_data.password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -1143,6 +1686,113 @@ async def get_all_users(user: User = Depends(get_current_user)):
     
     users = await db.users.find({"role": UserRole.USER}, {"_id": 0, "password_hash": 0}).to_list(1000)
     return users
+
+
+@api_router.patch("/admin/users/{user_id}/points")
+async def update_user_points(user_id: str, payload: UserPointsUpdate, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+
+    op = (payload.operation or "").lower().strip()
+    if op not in {"add", "subtract", "set"}:
+        raise HTTPException(status_code=400, detail="operation must be one of: add, subtract, set")
+    if payload.points < 0:
+        raise HTTPException(status_code=400, detail="points must be >= 0")
+
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    current_points = int(target.get("points", 0))
+    if op == "add":
+        new_points = current_points + int(payload.points)
+        delta = int(payload.points)
+    elif op == "subtract":
+        if current_points < int(payload.points):
+            raise HTTPException(status_code=400, detail="Insufficient points to subtract")
+        new_points = current_points - int(payload.points)
+        delta = -int(payload.points)
+    else:  # set
+        new_points = int(payload.points)
+        delta = new_points - current_points
+
+    await db.users.update_one({"id": user_id}, {"$set": {"points": new_points}})
+
+    if delta != 0:
+        ledger_type = "ADMIN_CREDIT" if delta > 0 else "ADMIN_DEBIT"
+        reason = payload.reason or f"Admin points update ({op})"
+        ledger_entry = PointsLedger(
+            user_id=user_id,
+            type=ledger_type,
+            amount=abs(delta),
+            description=reason,
+            balance_after=new_points,
+        )
+        ledger_doc = ledger_entry.model_dump()
+        ledger_doc["created_at"] = ledger_entry.created_at.isoformat()
+        await db.points_ledger.insert_one(ledger_doc)
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "username": target.get("username"),
+        "old_points": current_points,
+        "new_points": new_points,
+        "delta": delta,
+    }
+
+
+@api_router.patch("/admin/users/by-username/{username}/points")
+async def update_user_points_by_username(username: str, payload: UserPointsUpdate, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+
+    op = (payload.operation or "").lower().strip()
+    if op not in {"add", "subtract", "set"}:
+        raise HTTPException(status_code=400, detail="operation must be one of: add, subtract, set")
+    if payload.points < 0:
+        raise HTTPException(status_code=400, detail="points must be >= 0")
+
+    normalized_username = (username or "").strip().lower()
+    target = await db.users.find_one({"username": normalized_username}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found for username")
+
+    current_points = int(target.get("points", 0))
+    if op == "add":
+        new_points = current_points + int(payload.points)
+        delta = int(payload.points)
+    elif op == "subtract":
+        if current_points < int(payload.points):
+            raise HTTPException(status_code=400, detail="Insufficient points to subtract")
+        new_points = current_points - int(payload.points)
+        delta = -int(payload.points)
+    else:  # set
+        new_points = int(payload.points)
+        delta = new_points - current_points
+
+    await db.users.update_one({"id": target["id"]}, {"$set": {"points": new_points}})
+
+    if delta != 0:
+        ledger_type = "ADMIN_CREDIT" if delta > 0 else "ADMIN_DEBIT"
+        reason = payload.reason or f"Admin points update ({op})"
+        ledger_entry = PointsLedger(
+            user_id=target["id"],
+            type=ledger_type,
+            amount=abs(delta),
+            description=reason,
+            balance_after=new_points,
+        )
+        ledger_doc = ledger_entry.model_dump()
+        ledger_doc["created_at"] = ledger_entry.created_at.isoformat()
+        await db.points_ledger.insert_one(ledger_doc)
+
+    return {
+        "success": True,
+        "user_id": target["id"],
+        "username": target.get("username"),
+        "old_points": current_points,
+        "new_points": new_points,
+        "delta": delta,
+    }
 
 @api_router.get("/admin/partners")
 async def get_all_partners(user: User = Depends(get_current_user)):
@@ -1370,6 +2020,62 @@ async def mock_email_ingestion(
     
     return {"success": True, "purchase_id": purchase.id}
 
+# ============ AI LAYER (production-grade pipeline) ============
+# Input: canonical facts only. No raw payload parsing. No financial logic in AI.
+
+_ai_pipeline = None
+
+def _get_ai_pipeline():
+    global _ai_pipeline
+    if _ai_pipeline is None:
+        try:
+            from app.services.ai_pipeline import create_default_pipeline
+            from app.ai.llm_client import OpenAIClient
+            api_key = os.environ.get("OPENAI_API_KEY") or ""
+            llm = OpenAIClient(api_key=api_key) if api_key else None
+            _ai_pipeline = create_default_pipeline(llm_client=llm, ai_disabled=os.environ.get("LYNKR_AI_DISABLED", "").lower() in ("1", "true", "yes"))
+        except Exception as e:
+            logging.getLogger(__name__).warning("AI pipeline init failed, using deterministic-only: %s", e)
+            from app.services.ai_pipeline import create_default_pipeline
+            _ai_pipeline = create_default_pipeline(llm_client=None, ai_disabled=True)
+    return _ai_pipeline
+
+@api_router.post("/ai/process-facts")
+async def ai_process_facts(facts: List[dict], user: User = Depends(get_current_user)):
+    """Process canonical facts through the AI pipeline. Returns insights and optional explanations/recommendations. No financial operations."""
+    try:
+        from app.schemas.canonical_fact import CanonicalFact
+        canonical = [CanonicalFact.model_validate(f) for f in facts]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid canonical fact format: {e}")
+    pipeline = _get_ai_pipeline()
+    result = await pipeline.run(canonical)
+    return {
+        "insights": [i.model_dump() for i in result.insights],
+        "explanations": {k: v.model_dump() for k, v in result.explanations.items()},
+        "recommendations": {k: v.model_dump() for k, v in result.recommendations.items()},
+        "deterministic_only": result.deterministic_only,
+    }
+
+class RecordResolutionBody(BaseModel):
+    insight_id: str
+    summary: str
+    outcome: str
+    user_action_taken: Optional[str] = None
+
+@api_router.post("/ai/record-resolution")
+async def ai_record_resolution(body: RecordResolutionBody, user: User = Depends(get_current_user)):
+    """Record that an insight was resolved; updates memory only. No financial data stored."""
+    pipeline = _get_ai_pipeline()
+    await pipeline.record_resolution(
+        insight_id=body.insight_id,
+        user_id=user.id,
+        summary=body.summary,
+        outcome=body.outcome,
+        user_action_taken=body.user_action_taken,
+    )
+    return {"success": True}
+
 # Include router
 app.include_router(api_router)
 
@@ -1403,6 +2109,34 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_db_indexes():
+    async def create_index_safe(collection, keys, **kwargs):
+        try:
+            await collection.create_index(keys, **kwargs)
+        except OperationFailure as e:
+            # If an index already exists with same autogenerated name but different options,
+            # keep existing index and continue startup to avoid taking API down.
+            if getattr(e, "code", None) in (85, 86):
+                logger.warning("Index conflict skipped for %s: %s", keys, e)
+            else:
+                raise
+
+    await create_index_safe(db.users, [("username", 1)], unique=True, sparse=True)
+    await create_index_safe(
+        db.users,
+        [("lynkr_email", 1)],
+        unique=True,
+        partialFilterExpression={"role": UserRole.USER},
+    )
+    await create_index_safe(db.coupons, [("expiry_date", 1)])
+    await create_index_safe(db.coupons, [("partner_id", 1)])
+    await create_index_safe(db.coupons, [("is_active", 1)])
+    await create_index_safe(db.coupons, [("coupon_code", 1)], unique=True)
+    await create_index_safe(db.redemptions, [("coupon_id", 1)])
+    await create_index_safe(db.redemptions, [("user_id", 1)])
+    await create_index_safe(db.redemptions, [("user_id", 1), ("coupon_id", 1)], unique=True)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

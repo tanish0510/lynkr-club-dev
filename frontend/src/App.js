@@ -8,6 +8,7 @@ import OnboardingPage from '@/pages/OnboardingPage';
 import UserDashboard from '@/pages/UserDashboard';
 import AIInsightsPage from '@/pages/AIInsightsPage';
 import RewardsPage from '@/pages/RewardsPage';
+import CommunityPage from '@/pages/CommunityPage';
 import SettingsPage from '@/pages/SettingsPage';
 import ChatPage from '@/pages/ChatPage';
 import PartnerLanding from '@/pages/PartnerLanding';
@@ -91,6 +92,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/community"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <CommunityPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/settings"
           element={
             <ProtectedRoute allowedRoles={['USER']}>
@@ -128,6 +137,14 @@ function AppRoutes() {
         {/* Admin Routes */}
         <Route
           path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminPanel />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/coupons"
           element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminPanel />

@@ -6,9 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Shield, Users, TrendingUp, Award, ArrowRight, Mail, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PartnerProgramPage = () => {
   const navigate = useNavigate();
+  const { setTokenFromStorage } = useAuth();
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -25,10 +27,10 @@ const PartnerProgramPage = () => {
     try {
       const response = await api.post('/partner/auth/login', loginForm);
       const { token, user } = response.data;
-      
-      localStorage.setItem('token', token);
+
+      setTokenFromStorage(token);
       toast.success('Welcome back!');
-      
+
       // Check if password change required
       if (user.must_change_password) {
         navigate('/partner-first-login');

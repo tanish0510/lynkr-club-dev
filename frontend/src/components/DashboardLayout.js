@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Sparkles, Gift, Settings, LogOut, LayoutDashboard, ShoppingBag, Users } from 'lucide-react';
+import { MessageCircle, Sparkles, Gift, Settings, LogOut, LayoutDashboard, ShoppingBag, Users, Trophy } from 'lucide-react';
 
 const DashboardLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -24,6 +24,7 @@ const DashboardLayout = ({ children }) => {
     { path: '/chat', icon: MessageCircle, label: 'AI Chat' },
     { path: '/insights', icon: Sparkles, label: 'Insights' },
     { path: '/rewards', icon: Gift, label: 'Rewards' },
+    { path: '/community', icon: Trophy, label: 'Community' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 
