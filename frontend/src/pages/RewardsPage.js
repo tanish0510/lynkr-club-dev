@@ -1,27 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, Gift, Loader2, CheckCircle2, Copy, Clock3, Boxes } from "lucide-react";
+import { Gift, Copy } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import api from "@/utils/api";
-
-const formatValueBadge = (coupon) => {
-  if (coupon.value_type === "percentage") {
-    return `${coupon.value}% OFF`;
-  }
-  return `₹${coupon.value} OFF`;
-};
-
-const getExpiryText = (expiryDate) => {
-  const expiry = new Date(expiryDate).getTime();
-  const diffMs = expiry - Date.now();
-  if (diffMs <= 0) return "Expired";
-  const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const days = Math.floor(totalHours / 24);
-  const hours = totalHours % 24;
-  if (days > 0) return `${days}d ${hours}h left`;
-  return `${hours}h left`;
-};
+import DashboardLayout from "@/components/DashboardLayout";
+import PointsCard from "@/components/rewards/PointsCard";
+import RewardsList from "@/components/rewards/RewardsList";
+import RedeemModal from "@/components/rewards/RedeemModal";
 
 const RewardsPage = () => {
   const navigate = useNavigate();
@@ -31,6 +18,7 @@ const RewardsPage = () => {
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState(null);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
+  const [confettiPulse, setConfettiPulse] = useState(false);
 
   useEffect(() => {
     fetchRewardsData();
@@ -66,9 +54,11 @@ const RewardsPage = () => {
     setRedeeming(coupon.id);
     try {
       const response = await api.post(`/coupons/${coupon.id}/redeem`);
+      setConfettiPulse(true);
+      setTimeout(() => setConfettiPulse(false), 1200);
       toast.success(
         <div data-testid="redeem-success-message">
-          <p className="font-bold mb-1">Coupon Redeemed!</p>
+          <p className="font-bold mb-1">Coupon unlocked 🎉</p>
           <p className="text-xs mb-1">Coupon ID: <strong>{response.data.coupon_id}</strong></p>
           <p className="text-sm mb-2">
             Code: <strong>{response.data.coupon_code}</strong>
@@ -87,37 +77,30 @@ const RewardsPage = () => {
       await fetchRewardsData();
       setSelectedCoupon(null);
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Redemption failed");
+      if (String(error.response?.data?.detail || "").toLowerCase().includes("points")) {
+        toast.error("Insufficient points");
+      } else {
+        toast.error(error.response?.data?.detail || "Redemption failed");
+      }
     } finally {
       setRedeeming(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Gift className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Loading rewards...</p>
-        </div>
-      </div>
-    );
-  }
+  const confettiDots = useMemo(
+    () => Array.from({ length: 10 }, (_, i) => ({ id: i, left: 8 + i * 8 })),
+    []
+  );
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <Button
-          data-testid="back-to-dashboard-button"
-          variant="ghost"
-          onClick={() => navigate("/dashboard")}
-          className="mb-8 hover:bg-white/5 rounded-full"
-        >
-          <ArrowLeft className="mr-2 w-4 h-4" />
-          Back to Dashboard
-        </Button>
-
-        <div className="text-center mb-12">
+    <DashboardLayout>
+      <motion.div
+        className="max-w-6xl mx-auto px-6 py-12"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <motion.div className="text-center mb-12" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }}>
           <div className="inline-flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full mb-4">
             <Gift className="w-5 h-5 text-primary" />
             <span className="text-sm font-medium text-primary">Rewards</span>
@@ -134,85 +117,18 @@ const RewardsPage = () => {
             </Button>
           </div>
 
-          <div
-            data-testid="available-points-display"
-            className="inline-block min-w-[260px] bg-card rounded-3xl px-12 py-7 border border-white/10 shadow-2xl"
-          >
-            <p className="text-base text-muted-foreground uppercase tracking-wider mb-2">Your Points</p>
-            <p className="text-5xl md:text-6xl font-bold font-heading text-primary leading-none">{points}</p>
-          </div>
-        </div>
+          <PointsCard points={points} />
+        </motion.div>
 
-        <div data-testid="rewards-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {coupons.map((coupon) => {
-            const canRedeem = points >= coupon.points_cost && coupon.remaining_quantity > 0;
+        <RewardsList
+          coupons={coupons}
+          points={points}
+          redeeming={redeeming}
+          loading={loading}
+          onSelect={(coupon) => setSelectedCoupon(coupon)}
+        />
 
-            return (
-              <div
-                key={coupon.id}
-                data-testid={`reward-${coupon.id}`}
-                className={`bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-6 relative overflow-hidden ${
-                  canRedeem ? "hover:border-white/10" : "opacity-70"
-                }`}
-              >
-                <div className="mb-6">
-                  <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center mb-4">
-                    <Gift className="w-8 h-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-bold font-heading mb-1">{coupon.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-3">{coupon.partner_name || "Partner Offer"}</p>
-                  <span className="inline-flex bg-accent/20 text-accent px-3 py-1 rounded-full text-xs font-semibold mb-3">
-                    {formatValueBadge(coupon)}
-                  </span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold text-primary">{coupon.points_cost}</span>
-                    <span className="text-muted-foreground">points</span>
-                  </div>
-                  {coupon.min_purchase ? (
-                    <p className="text-xs text-muted-foreground mt-2">Min purchase ₹{coupon.min_purchase}</p>
-                  ) : null}
-                  <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Clock3 className="w-3 h-3" />
-                      {getExpiryText(coupon.expiry_date)}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Boxes className="w-3 h-3" />
-                      {coupon.remaining_quantity} left
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  data-testid={`redeem-button-${coupon.id}`}
-                  onClick={() => setSelectedCoupon(coupon)}
-                  disabled={!canRedeem || redeeming === coupon.id}
-                  className={`w-full rounded-full py-6 font-bold ${
-                    canRedeem
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90 glow-primary"
-                      : "bg-secondary text-secondary-foreground cursor-not-allowed"
-                  }`}
-                >
-                  {redeeming === coupon.id ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Redeeming...
-                    </>
-                  ) : canRedeem ? (
-                    <>
-                      <CheckCircle2 className="mr-2 w-5 h-5" />
-                      Redeem Now
-                    </>
-                  ) : (
-                    `Need ${Math.max(0, coupon.points_cost - points)} more points`
-                  )}
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-
-        <section className="mt-12">
+        <section className="mt-12 pt-8 border-t border-white/5">
           <div className="mb-4">
             <h2 className="text-3xl font-bold font-heading">My Rewards Activity</h2>
             <p className="text-sm text-muted-foreground">
@@ -250,31 +166,33 @@ const RewardsPage = () => {
           </div>
         </section>
 
-        {selectedCoupon ? (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-card rounded-2xl border border-white/10 p-6">
-              <h3 className="text-2xl font-bold mb-2">Confirm redemption</h3>
-              <p className="text-muted-foreground mb-6">
-                Redeem <strong>{selectedCoupon.title}</strong> for <strong>{selectedCoupon.points_cost} points</strong>?
-              </p>
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setSelectedCoupon(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1"
-                  disabled={redeeming === selectedCoupon.id}
-                  onClick={() => handleRedeem(selectedCoupon)}
-                >
-                  Confirm
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <RedeemModal
+          open={Boolean(selectedCoupon)}
+          coupon={selectedCoupon}
+          redeeming={redeeming}
+          onCancel={() => setSelectedCoupon(null)}
+          onConfirm={() => handleRedeem(selectedCoupon)}
+        />
 
-      </div>
-    </div>
+        <AnimatePresence>
+          {confettiPulse ? (
+            <motion.div className="pointer-events-none fixed inset-0 z-[60]">
+              {confettiDots.map((dot) => (
+                <motion.span
+                  key={dot.id}
+                  className="absolute top-20 h-2 w-2 rounded-full bg-primary/70"
+                  style={{ left: `${dot.left}%` }}
+                  initial={{ opacity: 0, y: 0, scale: 0.8 }}
+                  animate={{ opacity: [0, 1, 0], y: [0, -20 - dot.id * 2, -38 - dot.id * 2], scale: [0.8, 1, 0.7] }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.7, delay: dot.id * 0.02 }}
+                />
+              ))}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </motion.div>
+    </DashboardLayout>
   );
 };
 

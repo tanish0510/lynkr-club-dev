@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { ArrowLeft, Sparkles, TrendingUp, PieChart, User } from 'lucide-react';
+import { Sparkles, TrendingUp, PieChart, User } from 'lucide-react';
 import api from '@/utils/api';
+import DashboardLayout from '@/components/DashboardLayout';
 
 const AIInsights = () => {
-  const navigate = useNavigate();
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -27,30 +26,35 @@ const AIInsights = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Analyzing your spending patterns...</p>
+      <DashboardLayout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
+            <p className="text-muted-foreground">Analyzing your spending patterns...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
-  if (!insights) return null;
+  if (!insights) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-5xl mx-auto px-6 py-12">
+          <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-10 text-center">
+            <Sparkles className="w-12 h-12 text-primary mx-auto mb-4" />
+            <h1 className="text-3xl font-bold font-heading mb-2">AI Insights unavailable</h1>
+            <p className="text-muted-foreground mb-6">Could not load insights right now. Try again.</p>
+            <Button className="rounded-full" onClick={fetchInsights}>Retry</Button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <DashboardLayout>
       <div className="max-w-5xl mx-auto px-6 py-12">
-        <Button
-          data-testid="back-to-dashboard-button"
-          variant="ghost"
-          onClick={() => navigate('/dashboard')}
-          className="mb-8 hover:bg-white/5 rounded-full"
-        >
-          <ArrowLeft className="mr-2 w-4 h-4" />
-          Back to Dashboard
-        </Button>
-
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full mb-4">
             <Sparkles className="w-5 h-5 text-primary" />
@@ -161,7 +165,7 @@ const AIInsights = () => {
           </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

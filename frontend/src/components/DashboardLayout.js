@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Sparkles, Gift, Settings, LogOut, LayoutDashboard, ShoppingBag, Users, Trophy } from 'lucide-react';
+import { Sparkles, Gift, Settings, LogOut, LayoutDashboard, ShoppingBag, Users, Trophy } from 'lucide-react';
 
 const DashboardLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -21,11 +21,11 @@ const DashboardLayout = ({ children }) => {
   // User navigation items
   const userNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/chat', icon: MessageCircle, label: 'AI Chat' },
-    { path: '/insights', icon: Sparkles, label: 'Insights' },
+    { path: '/purchases', icon: ShoppingBag, label: 'Purchases' },
     { path: '/rewards', icon: Gift, label: 'Rewards' },
     { path: '/community', icon: Trophy, label: 'Community' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
+    { path: '/insights', icon: Sparkles, label: 'AI Insights' },
+    { path: '/settings', icon: Settings, label: 'Profile' },
   ];
 
   // Partner navigation items

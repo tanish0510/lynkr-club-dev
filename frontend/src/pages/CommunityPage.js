@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import api from "@/utils/api";
+import DashboardLayout from "@/components/DashboardLayout";
 
 const CommunityPage = () => {
-  const navigate = useNavigate();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,27 +25,20 @@ const CommunityPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Loading community leaderboard...</p>
+      <DashboardLayout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4 animate-pulse" />
+            <p className="text-muted-foreground">Loading community leaderboard...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <DashboardLayout>
       <div className="max-w-5xl mx-auto px-6 py-12">
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/dashboard")}
-          className="mb-8 hover:bg-white/5 rounded-full"
-        >
-          <ArrowLeft className="mr-2 w-4 h-4" />
-          Back to Dashboard
-        </Button>
-
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 bg-yellow-400/10 px-4 py-2 rounded-full mb-4">
             <Trophy className="w-5 h-5 text-yellow-400" />
@@ -92,7 +83,7 @@ const CommunityPage = () => {
           )}
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
