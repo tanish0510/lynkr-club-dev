@@ -6,6 +6,7 @@ import LandingPage from '@/pages/LandingPage';
 import EnhancedAuthPage from '@/pages/EnhancedAuthPage';
 import OnboardingPage from '@/pages/OnboardingPage';
 import UserDashboard from '@/pages/UserDashboard';
+import PurchasesPage from '@/pages/PurchasesPage';
 import AIInsightsPage from '@/pages/AIInsightsPage';
 import RewardsPage from '@/pages/RewardsPage';
 import CommunityPage from '@/pages/CommunityPage';
@@ -72,6 +73,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={['USER']}>
               <UserDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchases"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <PurchasesPage />
             </ProtectedRoute>
           }
         />

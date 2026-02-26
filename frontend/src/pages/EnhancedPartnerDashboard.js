@@ -10,9 +10,12 @@ const EnhancedPartnerDashboard = () => {
   const navigate = useNavigate();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [partnerPurchases, setPartnerPurchases] = useState([]);
+  const [processingPurchase, setProcessingPurchase] = useState(null);
 
   useEffect(() => {
     fetchDashboard();
+    fetchPartnerPurchases();
   }, []);
 
   const fetchDashboard = async () => {
@@ -30,6 +33,29 @@ const EnhancedPartnerDashboard = () => {
       toast.error('Failed to load dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPartnerPurchases = async () => {
+    try {
+      const response = await api.get('/partner/purchases');
+      setPartnerPurchases(response.data || []);
+    } catch (_) {
+      setPartnerPurchases([]);
+    }
+  };
+
+  const handleVerifyAction = async (purchaseId, action) => {
+    setProcessingPurchase(`${purchaseId}:${action}`);
+    try {
+      await api.post('/partner/verify-purchase', { purchase_id: purchaseId, action });
+      toast.success(action === 'VERIFY' ? 'Purchase verified and points credited' : 'Purchase rejected');
+      await fetchPartnerPurchases();
+      await fetchDashboard();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to process purchase');
+    } finally {
+      setProcessingPurchase(null);
     }
   };
 
@@ -115,6 +141,58 @@ const EnhancedPartnerDashboard = () => {
             </div>
             <p className="text-4xl font-bold font-heading text-accent">₹{dashboard.metrics.total_value.toLocaleString()}</p>
           </div>
+        </div>
+
+        <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 mb-8">
+          <h2 className="text-2xl font-bold font-heading mb-2">Pending Purchase Requests</h2>
+          <p className="text-sm text-muted-foreground mb-6">Verify or reject manual user purchase requests.</p>
+
+          {partnerPurchases.length === 0 ? (
+            <p className="text-muted-foreground">No purchase requests found.</p>
+          ) : (
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {partnerPurchases.map((p) => (
+                <div key={p.purchase_id} className="bg-secondary/30 rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{p.user_lynkr_email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Order: {p.order_id} • Txn: {p.transaction_id || '-'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Created: {new Date(p.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">₹{Number(p.amount || 0).toLocaleString()}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${p.status === 'VERIFIED' ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                      {p.status}
+                    </span>
+                    {p.status === 'PENDING' ? (
+                      <>
+                        <Button
+                          size="sm"
+                          className="rounded-full bg-green-600 hover:bg-green-700"
+                          disabled={processingPurchase === `${p.purchase_id}:VERIFY`}
+                          onClick={() => handleVerifyAction(p.purchase_id, 'VERIFY')}
+                        >
+                          {processingPurchase === `${p.purchase_id}:VERIFY` ? 'Verifying...' : 'Verify'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          disabled={processingPurchase === `${p.purchase_id}:REJECT`}
+                          onClick={() => handleVerifyAction(p.purchase_id, 'REJECT')}
+                        >
+                          {processingPurchase === `${p.purchase_id}:REJECT` ? 'Rejecting...' : 'Reject'}
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}

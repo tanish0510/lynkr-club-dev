@@ -104,6 +104,11 @@ class PurchaseStatus:
     VERIFIED = "VERIFIED"
     REJECTED = "REJECTED"
 
+class VerificationSource:
+    ADMIN = "ADMIN"
+    PARTNER = "PARTNER"
+    AUTO = "AUTO"
+
 class PartnerStatus:
     PENDING = "PENDING"
     PILOT = "PILOT"
@@ -208,9 +213,14 @@ class Purchase(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     brand: str
+    partner_id: Optional[str] = None
     order_id: str
+    transaction_id: Optional[str] = None
     amount: float
     status: str = PurchaseStatus.PENDING
+    submitted_by_user: bool = False
+    edited_once: bool = False
+    verification_source: Optional[str] = None  # ADMIN | PARTNER | AUTO
     category: Optional[str] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -225,10 +235,40 @@ class PurchaseResponse(BaseModel):
     id: str
     brand: str
     order_id: str
+    transaction_id: Optional[str] = None
     amount: float
     status: str
     category: Optional[str]
     timestamp: str
+
+
+class RaisePurchaseRequest(BaseModel):
+    partner_id: str
+    order_id: str
+    transaction_id: str
+    amount: float
+
+
+class UserPurchaseUpdateRequest(BaseModel):
+    partner_id: Optional[str] = None
+    order_id: Optional[str] = None
+    transaction_id: Optional[str] = None
+    amount: Optional[float] = None
+
+
+class PartnerPurchaseItem(BaseModel):
+    purchase_id: str
+    user_lynkr_email: str
+    order_id: str
+    transaction_id: Optional[str] = None
+    amount: float
+    status: str
+    created_at: str
+
+
+class PartnerVerifyPurchaseRequest(BaseModel):
+    purchase_id: str
+    action: str  # VERIFY | REJECT
 
 # Points Ledger Models
 class PointsLedger(BaseModel):
@@ -364,6 +404,7 @@ class PartnerOrder(BaseModel):
     purchase_id: str
     user_lynkr_email: str
     order_id: str
+    transaction_id: Optional[str] = None
     amount: float
     status: str = "PENDING"  # PENDING, ACKNOWLEDGED, DISPUTED
     acknowledged_at: Optional[datetime] = None
@@ -373,6 +414,7 @@ class PartnerOrderResponse(BaseModel):
     id: str
     user_lynkr_email: str
     order_id: str
+    transaction_id: Optional[str] = None
     amount: float
     status: str
     created_at: str
@@ -629,6 +671,84 @@ def _mask_username(full_name: Optional[str], email: Optional[str], user_id: str)
     else:
         masked_core = clean[:2] + ("*" * (len(clean) - 4)) + clean[-2:]
     return f"{masked_core}_{user_id[:4]}"
+
+
+async def _get_partner_id_for_user(user_id: str) -> str:
+    user_data = await db.users.find_one({"id": user_id}, {"_id": 0, "partner_id": 1})
+    partner_id = user_data.get("partner_id") if user_data else None
+    if not partner_id:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    return partner_id
+
+
+async def credit_user_points(user_id: str, amount: float, description: str) -> Dict[str, Any]:
+    # Reward conversion: 1 rupee = 0.25 points.
+    points_to_credit = int(float(amount) * 0.25)
+    if points_to_credit <= 0:
+        return {"credited_points": 0, "new_balance": None}
+
+    user_record = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user_record:
+        raise HTTPException(status_code=404, detail="User not found for points credit")
+
+    new_balance = int(user_record.get("points", 0)) + points_to_credit
+    await db.users.update_one({"id": user_id}, {"$set": {"points": new_balance}})
+
+    ledger_entry = PointsLedger(
+        user_id=user_id,
+        type="CREDIT",
+        amount=points_to_credit,
+        description=description,
+        balance_after=new_balance,
+    )
+    ledger_doc = ledger_entry.model_dump()
+    ledger_doc["created_at"] = ledger_entry.created_at.isoformat()
+    await db.points_ledger.insert_one(ledger_doc)
+    return {"credited_points": points_to_credit, "new_balance": new_balance}
+
+
+async def _set_purchase_verification_status(
+    purchase: Dict[str, Any],
+    action: str,
+    verification_source: str,
+    credit_description: Optional[str] = None,
+) -> Dict[str, Any]:
+    if action not in {"VERIFY", "REJECT"}:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    if purchase.get("status") != PurchaseStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Purchase already processed")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if action == "VERIFY":
+        await db.purchases.update_one(
+            {"id": purchase["id"]},
+            {
+                "$set": {
+                    "status": PurchaseStatus.VERIFIED,
+                    "verification_source": verification_source,
+                    "verified_at": now_iso,
+                }
+            },
+        )
+        credit_result = await credit_user_points(
+            user_id=purchase["user_id"],
+            amount=float(purchase["amount"]),
+            description=credit_description or f"Purchase verified: {purchase.get('brand', 'Partner purchase')}",
+        )
+        return {"success": True, "new_status": PurchaseStatus.VERIFIED, **credit_result}
+
+    await db.purchases.update_one(
+        {"id": purchase["id"]},
+        {
+            "$set": {
+                "status": PurchaseStatus.REJECTED,
+                "verification_source": verification_source,
+                "verified_at": now_iso,
+            }
+        },
+    )
+    return {"success": True, "new_status": PurchaseStatus.REJECTED}
 
 # ============ AUTH ENDPOINTS ============
 
@@ -950,11 +1070,68 @@ async def create_purchase(purchase_data: PurchaseCreate, user: User = Depends(ge
         id=purchase.id,
         brand=purchase.brand,
         order_id=purchase.order_id,
+        transaction_id=purchase.transaction_id,
         amount=purchase.amount,
         status=purchase.status,
         category=purchase.category,
         timestamp=purchase.timestamp.isoformat()
     )
+
+
+@api_router.post("/user/raise-purchase")
+async def raise_purchase(payload: RaisePurchaseRequest, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.USER)
+
+    partner_id = (payload.partner_id or "").strip()
+    order_id = (payload.order_id or "").strip()
+    transaction_id = (payload.transaction_id or "").strip()
+    if not partner_id:
+        raise HTTPException(status_code=400, detail="partner_id is required")
+    if not order_id:
+        raise HTTPException(status_code=400, detail="order_id is required")
+    if not transaction_id:
+        raise HTTPException(status_code=400, detail="transaction_id is required")
+    if float(payload.amount) <= 0:
+        raise HTTPException(status_code=400, detail="amount must be > 0")
+
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0})
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    purchase = Purchase(
+        user_id=user.id,
+        partner_id=partner_id,
+        brand=partner.get("business_name", "Partner Purchase"),
+        order_id=order_id,
+        transaction_id=transaction_id,
+        amount=float(payload.amount),
+        status=PurchaseStatus.PENDING,
+        submitted_by_user=True,
+    )
+    purchase_doc = purchase.model_dump()
+    purchase_doc["timestamp"] = purchase.timestamp.isoformat()
+    purchase_doc["detected_at"] = purchase.detected_at.isoformat()
+    await db.purchases.insert_one(purchase_doc)
+
+    partner_order = PartnerOrder(
+        partner_id=partner_id,
+        purchase_id=purchase.id,
+        user_lynkr_email=user.lynkr_email,
+        order_id=order_id,
+        transaction_id=transaction_id,
+        amount=float(payload.amount),
+        status="PENDING",
+    )
+    partner_doc = partner_order.model_dump()
+    partner_doc["created_at"] = partner_order.created_at.isoformat()
+    await db.partner_orders.insert_one(partner_doc)
+
+    return {
+        "success": True,
+        "purchase_id": purchase.id,
+        "status": purchase.status,
+        "partner_name": partner.get("business_name"),
+    }
 
 @api_router.get("/purchases")
 async def get_purchases(user: User = Depends(get_current_user)):
@@ -968,12 +1145,128 @@ async def get_purchases(user: User = Depends(get_current_user)):
             id=p['id'],
             brand=p['brand'],
             order_id=p['order_id'],
+            transaction_id=p.get('transaction_id'),
             amount=p['amount'],
             status=p['status'],
             category=p.get('category'),
             timestamp=p['timestamp']
         ) for p in purchases
     ]
+
+
+@api_router.get("/user/raised-purchases")
+async def get_raised_purchases(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.USER)
+    purchases = await db.purchases.find(
+        {"user_id": user.id, "submitted_by_user": True},
+        {"_id": 0},
+    ).sort("timestamp", -1).to_list(200)
+
+    partner_ids = sorted({p.get("partner_id") for p in purchases if p.get("partner_id")})
+    partner_map = {}
+    if partner_ids:
+        partners = await db.partners.find({"id": {"$in": partner_ids}}, {"_id": 0, "id": 1, "business_name": 1}).to_list(len(partner_ids))
+        partner_map = {p["id"]: p for p in partners}
+
+    return [
+        {
+            "purchase_id": p["id"],
+            "partner_id": p.get("partner_id"),
+            "partner_name": partner_map.get(p.get("partner_id"), {}).get("business_name"),
+            "order_id": p.get("order_id"),
+            "transaction_id": p.get("transaction_id"),
+            "amount": p.get("amount"),
+            "status": p.get("status"),
+            "created_at": p.get("timestamp"),
+            "edited_once": bool(p.get("edited_once", False)),
+            "can_edit": p.get("status") == PurchaseStatus.PENDING and not bool(p.get("edited_once", False)),
+        }
+        for p in purchases
+    ]
+
+
+@api_router.patch("/user/raised-purchases/{purchase_id}")
+async def update_raised_purchase(
+    purchase_id: str,
+    payload: UserPurchaseUpdateRequest,
+    user: User = Depends(get_current_user),
+):
+    await require_role(user, UserRole.USER)
+    purchase = await db.purchases.find_one({"id": purchase_id, "user_id": user.id}, {"_id": 0})
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    if not purchase.get("submitted_by_user"):
+        raise HTTPException(status_code=400, detail="Only manually raised purchases can be edited")
+    if purchase.get("status") != PurchaseStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Only pending purchases can be edited")
+    if purchase.get("edited_once", False):
+        raise HTTPException(status_code=400, detail="Purchase can only be edited once")
+
+    patch_data: Dict[str, Any] = {}
+    partner_name: Optional[str] = None
+
+    if payload.partner_id is not None:
+        new_partner_id = payload.partner_id.strip()
+        if not new_partner_id:
+            raise HTTPException(status_code=400, detail="partner_id cannot be empty")
+        partner = await db.partners.find_one({"id": new_partner_id}, {"_id": 0, "business_name": 1})
+        if not partner:
+            raise HTTPException(status_code=404, detail="Partner not found")
+        patch_data["partner_id"] = new_partner_id
+        patch_data["brand"] = partner.get("business_name", purchase.get("brand"))
+        partner_name = partner.get("business_name")
+
+    if payload.order_id is not None:
+        new_order_id = payload.order_id.strip()
+        if not new_order_id:
+            raise HTTPException(status_code=400, detail="order_id cannot be empty")
+        patch_data["order_id"] = new_order_id
+
+    if payload.transaction_id is not None:
+        new_transaction_id = payload.transaction_id.strip()
+        if not new_transaction_id:
+            raise HTTPException(status_code=400, detail="transaction_id cannot be empty")
+        patch_data["transaction_id"] = new_transaction_id
+
+    if payload.amount is not None:
+        if float(payload.amount) <= 0:
+            raise HTTPException(status_code=400, detail="amount must be > 0")
+        patch_data["amount"] = float(payload.amount)
+
+    if not patch_data:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+
+    patch_data["edited_once"] = True
+    await db.purchases.update_one({"id": purchase_id}, {"$set": patch_data})
+
+    partner_order_patch = {}
+    if "partner_id" in patch_data:
+        partner_order_patch["partner_id"] = patch_data["partner_id"]
+    if "order_id" in patch_data:
+        partner_order_patch["order_id"] = patch_data["order_id"]
+    if "transaction_id" in patch_data:
+        partner_order_patch["transaction_id"] = patch_data["transaction_id"]
+    if "amount" in patch_data:
+        partner_order_patch["amount"] = patch_data["amount"]
+    if partner_order_patch:
+        await db.partner_orders.update_one({"purchase_id": purchase_id}, {"$set": partner_order_patch})
+
+    return {
+        "success": True,
+        "purchase_id": purchase_id,
+        "partner_name": partner_name,
+        "edited_once": True,
+    }
+
+
+@api_router.get("/partners/active")
+async def get_active_partners_for_users(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.USER)
+    partners = await db.partners.find(
+        {"status": {"$in": [PartnerStatus.ACTIVE, PartnerStatus.PILOT, PartnerStatus.PENDING]}},
+        {"_id": 0, "id": 1, "business_name": 1, "category": 1, "status": 1},
+    ).sort("business_name", 1).to_list(1000)
+    return partners
 
 # ============ AI INSIGHTS ENDPOINTS ============
 
@@ -1600,11 +1893,7 @@ async def get_partner_dashboard(user: User = Depends(get_current_user)):
 async def get_partner_orders(status: Optional[str] = None, user: User = Depends(get_current_user)):
     await require_role(user, UserRole.PARTNER)
     
-    user_data = await db.users.find_one({"id": user.id}, {"_id": 0})
-    partner_id = user_data.get('partner_id')
-    
-    if not partner_id:
-        raise HTTPException(status_code=404, detail="Partner profile not found")
+    partner_id = await _get_partner_id_for_user(user.id)
     
     query = {"partner_id": partner_id}
     if status:
@@ -1617,6 +1906,7 @@ async def get_partner_orders(status: Optional[str] = None, user: User = Depends(
             id=o['id'],
             user_lynkr_email=o['user_lynkr_email'],
             order_id=o['order_id'],
+            transaction_id=o.get('transaction_id'),
             amount=o['amount'],
             status=o['status'],
             created_at=o['created_at'],
@@ -1624,12 +1914,72 @@ async def get_partner_orders(status: Optional[str] = None, user: User = Depends(
         ) for o in orders
     ]
 
+
+@api_router.get("/partner/purchases")
+async def get_partner_purchases(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.PARTNER)
+    partner_id = await _get_partner_id_for_user(user.id)
+
+    query = {"partner_id": partner_id, "status": {"$in": [PurchaseStatus.PENDING, PurchaseStatus.VERIFIED]}}
+    purchases = await db.purchases.find(query, {"_id": 0}).sort("timestamp", -1).to_list(1000)
+
+    user_ids = sorted({p.get("user_id") for p in purchases if p.get("user_id")})
+    user_map = {}
+    if user_ids:
+        users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "lynkr_email": 1}).to_list(len(user_ids))
+        user_map = {u["id"]: u for u in users}
+
+    return [
+        PartnerPurchaseItem(
+            purchase_id=p["id"],
+            user_lynkr_email=user_map.get(p.get("user_id"), {}).get("lynkr_email", ""),
+            order_id=p.get("order_id"),
+            transaction_id=p.get("transaction_id"),
+            amount=float(p.get("amount", 0)),
+            status=p.get("status"),
+            created_at=p.get("timestamp"),
+        ).model_dump()
+        for p in purchases
+    ]
+
+
+@api_router.post("/partner/verify-purchase")
+async def partner_verify_purchase(payload: PartnerVerifyPurchaseRequest, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.PARTNER)
+    partner_id = await _get_partner_id_for_user(user.id)
+
+    action = (payload.action or "").strip().upper()
+    if action not in {"VERIFY", "REJECT"}:
+        raise HTTPException(status_code=400, detail="action must be VERIFY or REJECT")
+
+    purchase = await db.purchases.find_one({"id": payload.purchase_id}, {"_id": 0})
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+
+    if purchase.get("partner_id") != partner_id:
+        raise HTTPException(status_code=403, detail="You can only verify your own purchases")
+
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0, "business_name": 1})
+    partner_name = partner.get("business_name", "Partner") if partner else "Partner"
+    result = await _set_purchase_verification_status(
+        purchase=purchase,
+        action=action,
+        verification_source=VerificationSource.PARTNER,
+        credit_description=f"Partner verified purchase: {partner_name}",
+    )
+
+    order_status = "ACKNOWLEDGED" if action == "VERIFY" else "DISPUTED"
+    await db.partner_orders.update_one(
+        {"purchase_id": payload.purchase_id, "partner_id": partner_id},
+        {"$set": {"status": order_status, "acknowledged_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return result
+
 @api_router.post("/partner/acknowledge-order/{order_id}")
 async def acknowledge_order(order_id: str, user: User = Depends(get_current_user)):
     await require_role(user, UserRole.PARTNER)
     
-    user_data = await db.users.find_one({"id": user.id}, {"_id": 0})
-    partner_id = user_data.get('partner_id')
+    partner_id = await _get_partner_id_for_user(user.id)
     
     # Verify order belongs to this partner
     order = await db.partner_orders.find_one({"id": order_id, "partner_id": partner_id}, {"_id": 0})
@@ -1645,37 +1995,16 @@ async def acknowledge_order(order_id: str, user: User = Depends(get_current_user
         {"$set": {"status": "ACKNOWLEDGED", "acknowledged_at": datetime.now(timezone.utc).isoformat()}}
     )
     
-    # Also update the purchase status to VERIFIED
-    await db.purchases.update_one(
-        {"id": order['purchase_id']},
-        {"$set": {"status": PurchaseStatus.VERIFIED, "verified_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    # Credit points to user
     purchase = await db.purchases.find_one({"id": order['purchase_id']}, {"_id": 0})
-    points_to_credit = int(purchase['amount'] * 0.01)
-    
-    user_record = await db.users.find_one({"id": purchase['user_id']}, {"_id": 0})
-    new_balance = user_record['points'] + points_to_credit
-    
-    await db.users.update_one(
-        {"id": purchase['user_id']},
-        {"$set": {"points": new_balance}}
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0, "business_name": 1})
+    partner_name = partner.get("business_name", purchase.get("brand", "Partner")) if partner else purchase.get("brand", "Partner")
+    await _set_purchase_verification_status(
+        purchase=purchase,
+        action="VERIFY",
+        verification_source=VerificationSource.PARTNER,
+        credit_description=f"Partner verified purchase: {partner_name}",
     )
-    
-    # Record in ledger
-    ledger_entry = PointsLedger(
-        user_id=purchase['user_id'],
-        type="CREDIT",
-        amount=points_to_credit,
-        description=f"Purchase verified by partner: {purchase['brand']} - ₹{purchase['amount']}",
-        balance_after=new_balance
-    )
-    
-    doc = ledger_entry.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
-    await db.points_ledger.insert_one(doc)
-    
+
     return {"success": True, "message": "Order acknowledged and points credited"}
 
 # ============ ADMIN ENDPOINTS ============
@@ -1819,40 +2148,13 @@ async def verify_purchase(purchase_id: str, action: str, user: User = Depends(ge
     if not purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
     
-    new_status = PurchaseStatus.VERIFIED if action == "VERIFY" else PurchaseStatus.REJECTED
-    
-    await db.purchases.update_one(
-        {"id": purchase_id},
-        {"$set": {"status": new_status, "verified_at": datetime.now(timezone.utc).isoformat()}}
+    result = await _set_purchase_verification_status(
+        purchase=purchase,
+        action=action,
+        verification_source=VerificationSource.ADMIN,
+        credit_description=f"Purchase verified: {purchase.get('brand', 'Partner')} - ₹{purchase.get('amount')}",
     )
-    
-    # If verified, credit points
-    if action == "VERIFY":
-        points_to_credit = int(purchase['amount'] * 0.01)  # 1% cashback
-        
-        # Update user points
-        user_data = await db.users.find_one({"id": purchase['user_id']}, {"_id": 0})
-        new_balance = user_data['points'] + points_to_credit
-        
-        await db.users.update_one(
-            {"id": purchase['user_id']},
-            {"$set": {"points": new_balance}}
-        )
-        
-        # Record in ledger
-        ledger_entry = PointsLedger(
-            user_id=purchase['user_id'],
-            type="CREDIT",
-            amount=points_to_credit,
-            description=f"Purchase verified: {purchase['brand']} - ₹{purchase['amount']}",
-            balance_after=new_balance
-        )
-        
-        doc = ledger_entry.model_dump()
-        doc['created_at'] = doc['created_at'].isoformat()
-        await db.points_ledger.insert_one(doc)
-    
-    return {"success": True, "new_status": new_status}
+    return result
 
 @api_router.post("/admin/create-partner")
 async def create_partner(partner_data: PartnerCreate, user: User = Depends(get_current_user)):
@@ -1985,10 +2287,14 @@ async def mock_email_ingestion(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # Find partner by brand name (simplified - in real app, would be more sophisticated)
+    partner = await db.partners.find_one({"business_name": {"$regex": brand, "$options": "i"}}, {"_id": 0})
+
     # Create purchase
     purchase = Purchase(
         user_id=user['id'],
         brand=brand,
+        partner_id=partner["id"] if partner else None,
         order_id=order_id,
         amount=amount,
         status=PurchaseStatus.PENDING,
@@ -2000,9 +2306,6 @@ async def mock_email_ingestion(
     doc['detected_at'] = doc['detected_at'].isoformat()
     await db.purchases.insert_one(doc)
     
-    # Find partner by brand name (simplified - in real app, would be more sophisticated)
-    partner = await db.partners.find_one({"business_name": {"$regex": brand, "$options": "i"}}, {"_id": 0})
-    
     if partner:
         # Create partner order
         partner_order = PartnerOrder(
@@ -2010,6 +2313,7 @@ async def mock_email_ingestion(
             purchase_id=purchase.id,
             user_lynkr_email=lynkr_email,
             order_id=order_id,
+            transaction_id=purchase.transaction_id,
             amount=amount,
             status="PENDING"
         )
@@ -2137,6 +2441,9 @@ async def startup_db_indexes():
     await create_index_safe(db.redemptions, [("coupon_id", 1)])
     await create_index_safe(db.redemptions, [("user_id", 1)])
     await create_index_safe(db.redemptions, [("user_id", 1), ("coupon_id", 1)], unique=True)
+    await create_index_safe(db.purchases, [("user_id", 1), ("timestamp", -1)])
+    await create_index_safe(db.purchases, [("partner_id", 1), ("status", 1), ("timestamp", -1)])
+    await create_index_safe(db.partner_orders, [("partner_id", 1), ("status", 1), ("created_at", -1)])
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
