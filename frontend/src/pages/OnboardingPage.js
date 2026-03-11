@@ -22,7 +22,7 @@ const OnboardingPage = () => {
   const completeOnboarding = async () => {
     try {
       await api.post('/user/complete-onboarding');
-      navigate('/dashboard');
+      navigate('/app/dashboard');
     } catch (error) {
       toast.error('Failed to complete onboarding');
     }
@@ -31,12 +31,12 @@ const OnboardingPage = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
       <div className="w-full max-w-3xl">
         {step === 1 && (
           <div data-testid="onboarding-step-1" className="space-y-8 animate-in fade-in duration-700">
             <div className="text-center">
-              <h1 className="text-5xl md:text-6xl font-bold font-heading mb-4">
+              <h1 className="text-3xl md:text-6xl font-bold font-heading mb-4">
                 Welcome to Lynkr! 🎉
               </h1>
               <p className="text-xl text-muted-foreground">
@@ -86,7 +86,7 @@ const OnboardingPage = () => {
               <Button
                 data-testid="continue-button"
                 onClick={() => setStep(2)}
-                className="w-full mt-8 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary"
+                className="w-full min-h-11 mt-8 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary"
               >
                 Continue
                 <ArrowRight className="ml-2 w-5 h-5" />
@@ -98,7 +98,7 @@ const OnboardingPage = () => {
         {step === 2 && (
           <div data-testid="onboarding-step-2" className="space-y-8 animate-in fade-in duration-700">
             <div className="text-center">
-              <h1 className="text-5xl md:text-6xl font-bold font-heading mb-4">
+              <h1 className="text-3xl md:text-6xl font-bold font-heading mb-4">
                 Your Lynkr Email
               </h1>
               <p className="text-xl text-muted-foreground">
@@ -117,7 +117,7 @@ const OnboardingPage = () => {
                     data-testid="copy-email-button"
                     onClick={handleCopy}
                     variant="outline"
-                    className="bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary rounded-full px-6 py-3"
+                    className="min-h-11 bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary rounded-full px-6 py-3"
                   >
                     {copied ? (
                       <>
@@ -145,7 +145,7 @@ const OnboardingPage = () => {
               <Button
                 data-testid="got-it-button"
                 onClick={completeOnboarding}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary"
+                className="w-full min-h-11 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary"
               >
                 Got It! Take Me to Dashboard
                 <ArrowRight className="ml-2 w-5 h-5" />

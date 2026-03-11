@@ -30,6 +30,17 @@ except ImportError:
 import json
 import resend
 from openai import AsyncOpenAI
+from services.email_ingest_service import (
+    EmailIngestService,
+    is_purchase_email,
+    parse_purchase_email,
+)
+from services.zoho_token_manager import create_org_token_manager
+
+USERNAME_REGEX = re.compile(r"^[a-z0-9_]{3,20}$")
+DEFAULT_AVATAR = "avatar_01.svg"
+AVATAR_PATH_REGEX = re.compile(r"^avatar_(0[1-9]|1[0-9]|20)\.svg$")
+USERNAME_CHANGE_COOLDOWN_HOURS = int(os.environ.get("USERNAME_CHANGE_COOLDOWN_HOURS", "24"))
 
 
 ROOT_DIR = Path(__file__).parent
@@ -47,18 +58,25 @@ JWT_SECRET = os.environ.get('JWT_SECRET')
 JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-# Email Configuration
+# Email Configuration (verification emails sent from admin@lynkr.club)
 resend.api_key = os.environ.get('RESEND_API_KEY')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'Lynkr <admin@lynkr.club>')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://lynkr.club')
+VERIFICATION_OTP_EXPIRE_MINUTES = max(5, min(60, int(os.environ.get("VERIFICATION_OTP_EXPIRE_MINUTES", "10"))))
 
 # Zoho Mail provisioning configuration
 ZOHO_MAIL_ENABLED = (os.environ.get("ZOHO_MAIL_ENABLED", "0") or "0").strip().lower() in ("1", "true", "yes", "on")
 ZOHO_MAIL_REQUIRED_ON_SIGNUP = (os.environ.get("ZOHO_MAIL_REQUIRED_ON_SIGNUP", "0") or "0").strip().lower() in ("1", "true", "yes", "on")
 ZOHO_MAIL_API_BASE = (os.environ.get("ZOHO_MAIL_API_BASE", "https://mail.zoho.com/api") or "").rstrip("/")
+ZOHO_MAIL_API_DOMAIN = (os.environ.get("ZOHO_MAIL_API_DOMAIN", "") or "").strip().rstrip("/")
 ZOHO_MAIL_ORG_ID = (os.environ.get("ZOHO_MAIL_ORG_ID", "") or "").strip()
 ZOHO_MAIL_DOMAIN = (os.environ.get("ZOHO_MAIL_DOMAIN", "lynkr.club") or "lynkr.club").strip().lower()
-ZOHO_MAIL_OAUTH_TOKEN = (os.environ.get("ZOHO_MAIL_OAUTH_TOKEN", "") or "").strip()
+zoho_org_token_manager = create_org_token_manager()
+
+# Automated email ingestion configuration
+EMAIL_INGEST_ENABLED = (os.environ.get("EMAIL_INGEST_ENABLED", "1") or "1").strip().lower() in ("1", "true", "yes", "on")
+EMAIL_INGEST_POLL_SECONDS = max(30, int(os.environ.get("EMAIL_INGEST_POLL_SECONDS", "90")))
+EMAIL_INGEST_BATCH_SIZE = max(1, min(200, int(os.environ.get("EMAIL_INGEST_BATCH_SIZE", "25"))))
 
 # OpenAI Configuration
 openai_client = AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
@@ -77,6 +95,9 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 api_router = APIRouter(prefix="/api")
+email_ingest_service: Optional[EmailIngestService] = None
+email_ingest_task: Optional[asyncio.Task] = None
+email_ingest_stop_event = asyncio.Event()
 
 # Root API endpoint
 @api_router.get("/")
@@ -125,8 +146,13 @@ class SpendingCategory:
     OTHER = "Other"
 
 # User Models
+class RequestSignupOtp(BaseModel):
+    email: EmailStr
+
+
 class UserSignup(BaseModel):
     username: str
+    avatar: str
     email: EmailStr
     password: str
     full_name: str
@@ -134,6 +160,8 @@ class UserSignup(BaseModel):
     dob: date
     gender: str
     role: str = UserRole.USER
+    terms_accepted: bool = False
+    signup_otp: Optional[str] = None  # 6-digit OTP sent to email during signup; when provided, email is marked verified
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -145,7 +173,7 @@ class User(BaseModel):
     email: EmailStr
     password_hash: str
     full_name: str
-    username: Optional[str] = None
+    username: str
     phone: str
     dob: str
     gender: str
@@ -155,7 +183,8 @@ class User(BaseModel):
     email_verified: bool = False
     verification_token: Optional[str] = None
     points: int = 0
-    avatar: Optional[str] = None
+    avatar: str = DEFAULT_AVATAR
+    username_changed_at: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     onboarding_complete: bool = False
     notification_preferences: dict = Field(default_factory=lambda: {
@@ -181,17 +210,25 @@ class UserResponse(BaseModel):
     lynkr_email: str
     points: int
     email_verified: bool
-    avatar: Optional[str]
+    avatar: str
     onboarding_complete: bool
     notification_preferences: dict
     privacy_settings: dict
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
+    username: Optional[str] = None
     phone: Optional[str] = None
     dob: Optional[date] = None
     gender: Optional[str] = None
     avatar: Optional[str] = None
+
+
+class UsernameAvailabilityResponse(BaseModel):
+    username: str
+    normalized_username: str
+    available: bool
+    hint: str
 
 class PasswordChange(BaseModel):
     current_password: str
@@ -219,6 +256,7 @@ class Purchase(BaseModel):
     amount: float
     status: str = PurchaseStatus.PENDING
     submitted_by_user: bool = False
+    source: Optional[str] = None
     edited_once: bool = False
     verification_source: Optional[str] = None  # ADMIN | PARTNER | AUTO
     category: Optional[str] = None
@@ -420,6 +458,60 @@ class PartnerOrderResponse(BaseModel):
     created_at: str
     acknowledged_at: Optional[str]
 
+
+class PartnerCouponRequestStatus:
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class PartnerCouponRequestCreate(BaseModel):
+    title: str
+    description: str
+    discount_or_reward_details: str = ""
+    points_required: int
+    expiry_date: datetime
+    max_redemptions: int
+    terms_and_conditions: str = ""
+
+
+class PartnerCouponRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    partner_id: str
+    title: str
+    description: str
+    discount_or_reward_details: str = ""
+    points_required: int
+    expiry_date: datetime
+    max_redemptions: int
+    terms_and_conditions: str = ""
+    status: str = PartnerCouponRequestStatus.PENDING
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    reviewed_at: Optional[datetime] = None
+    reviewed_by: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    # Filled by admin before approval (for creating coupon)
+    value_type: str = "fixed"
+    value: float = 0.0
+    coupon_code: Optional[str] = None
+
+
+class PartnerCouponRequestUpdate(BaseModel):
+    status: Optional[str] = None  # APPROVED | REJECTED
+    rejection_reason: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    discount_or_reward_details: Optional[str] = None
+    points_required: Optional[int] = None
+    expiry_date: Optional[datetime] = None
+    max_redemptions: Optional[int] = None
+    terms_and_conditions: Optional[str] = None
+    value_type: Optional[str] = None
+    value: Optional[float] = None
+    coupon_code: Optional[str] = None
+
+
 # Survey Models
 class UserSurvey(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -487,8 +579,22 @@ def generate_lynkr_email(username: str) -> str:
 def normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
+
+def normalize_username(username: str) -> str:
+    return (username or "").strip().lower()
+
+
+def is_valid_avatar(avatar: str) -> bool:
+    return bool(AVATAR_PATH_REGEX.fullmatch((avatar or "").strip()))
+
+
 def generate_verification_token() -> str:
     return str(uuid.uuid4())
+
+
+def generate_verification_otp() -> str:
+    import random
+    return "".join(str(random.randint(0, 9)) for _ in range(6))
 
 def generate_random_password(length: int = 12) -> str:
     import random
@@ -506,98 +612,294 @@ def _split_name(full_name: str) -> tuple[str, str]:
     return (parts[0], " ".join(parts[1:]))
 
 
-async def provision_zoho_mailbox_if_enabled(username: str, full_name: str, email_address: str) -> bool:
+async def provision_zoho_mailbox_if_enabled(
+    username: str,
+    full_name: str,
+    email_address: str,
+    mailbox_password: str,
+) -> bool:
     if not ZOHO_MAIL_ENABLED:
         return False
 
-    missing = []
     if not ZOHO_MAIL_ORG_ID:
-        missing.append("ZOHO_MAIL_ORG_ID")
-    if not ZOHO_MAIL_OAUTH_TOKEN:
-        missing.append("ZOHO_MAIL_OAUTH_TOKEN")
-    if missing:
-        logging.warning("Zoho mailbox provisioning skipped; missing env keys: %s", ",".join(missing))
+        logging.warning("Zoho mailbox provisioning skipped; missing ZOHO_MAIL_ORG_ID")
+        return False
+
+    org_token = await zoho_org_token_manager.get_token()
+    if not org_token:
+        logging.warning("Zoho mailbox provisioning skipped; no org OAuth token available")
         return False
 
     first_name, last_name = _split_name(full_name)
-    # Temporary mailbox password (used only for account creation in Zoho).
-    temp_password = generate_random_password(16)
     payload = {
         "primaryEmailAddress": email_address,
         "displayName": full_name or username,
-        "userName": username,
         "firstName": first_name,
         "lastName": last_name,
-        "password": temp_password,
+        "password": mailbox_password,
     }
     headers = {
-        "Authorization": f"Zoho-oauthtoken {ZOHO_MAIL_OAUTH_TOKEN}",
+        "Authorization": f"Zoho-oauthtoken {org_token}",
         "Content-Type": "application/json",
     }
-    endpoint_candidates = [
-        f"{ZOHO_MAIL_API_BASE}/organization/{ZOHO_MAIL_ORG_ID}/accounts",
-        f"{ZOHO_MAIL_API_BASE}/organization/{ZOHO_MAIL_ORG_ID}/account",
-    ]
+    # Per Zoho docs: POST /api/organization/{zoid}/accounts
+    endpoint = f"{ZOHO_MAIL_API_BASE}/organization/{ZOHO_MAIL_ORG_ID}/accounts"
 
     async with httpx.AsyncClient(timeout=20.0) as client_http:
-        for endpoint in endpoint_candidates:
-            try:
-                response = await client_http.post(endpoint, headers=headers, json=payload)
-                if 200 <= response.status_code < 300:
-                    logging.info("Zoho mailbox provisioned for %s", email_address)
-                    return True
+        try:
+            response = await client_http.post(endpoint, headers=headers, json=payload)
+            if 200 <= response.status_code < 300:
+                logging.info("Zoho mailbox provisioned for %s via %s", email_address, endpoint)
+                return True
 
-                body = response.text.lower()
-                if response.status_code in (400, 409) and ("exist" in body or "duplicate" in body):
-                    logging.info("Zoho mailbox already exists for %s", email_address)
-                    return True
-            except Exception as e:
-                logging.warning("Zoho mailbox provisioning attempt failed (%s): %s", endpoint, e)
+            body = response.text.lower()
+            if response.status_code in (400, 409) and ("exist" in body or "duplicate" in body):
+                logging.info("Zoho mailbox already exists for %s", email_address)
+                return True
+            logging.error(
+                "Zoho mailbox provisioning returned %s for %s: %s",
+                response.status_code,
+                endpoint,
+                (response.text or "")[:400],
+            )
+        except Exception as e:
+            logging.error("Zoho mailbox provisioning request failed (%s): %s", endpoint, e)
 
-    logging.error("Zoho mailbox provisioning failed for %s", email_address)
     return False
 
-async def send_verification_email(email: str, token: str, user_name: str):
-    verification_link = f"{FRONTEND_URL}/verify-email?token={token}"
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: 'Arial', sans-serif; background-color: #050505; color: #ffffff; margin: 0; padding: 0; }}
-            .container {{ max-width: 600px; margin: 40px auto; background-color: #121212; border-radius: 24px; padding: 40px; border: 1px solid rgba(255,255,255,0.05); }}
-            .logo {{ font-size: 32px; font-weight: bold; margin-bottom: 24px; }}
-            .button {{ display: inline-block; background-color: #3B82F6; color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: bold; margin: 24px 0; }}
-            .footer {{ color: #A1A1AA; font-size: 14px; margin-top: 32px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="logo">Lynkr</div>
-            <h1>Welcome to Lynkr, {user_name}!</h1>
-            <p>Thank you for signing up. Please verify your email address to get started.</p>
-            <a href="{verification_link}" class="button">Verify Email Address</a>
-            <p>Or copy this link: {verification_link}</p>
-            <div class="footer">
-                <p>If you didn't sign up for Lynkr, please ignore this email.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
+async def send_verification_email(email: str, token: str, user_name: str, otp: Optional[str] = None):
+    verification_link = f"{FRONTEND_URL}/verify-email?token={token}" if token else ""
+    display_name = user_name if user_name and user_name != "there" else ""
+    greeting = f"Hi {display_name}," if display_name else "Hi there,"
+
+    otp_digits = ""
+    if otp:
+        otp_digits = "".join(
+            f'<td style="width:44px;height:52px;background-color:#1A1D24;border:1px solid #2A2D35;'
+            f'border-radius:10px;text-align:center;font-size:26px;font-weight:700;'
+            f'font-family:\'Courier New\',monospace;color:#ffffff;letter-spacing:1px;">{ch}</td>'
+            f'<td style="width:8px;"></td>'
+            for ch in str(otp)
+        )
+
+    link_row = ""
+    if verification_link:
+        link_row = (
+            f'<tr><td style="padding:24px 0 0;">'
+            f'<table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">'
+            f'<tr><td style="background-color:#3B82F6;border-radius:12px;text-align:center;">'
+            f'<a href="{verification_link}" style="display:inline-block;padding:14px 36px;'
+            f'color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;'
+            f'font-family:Arial,Helvetica,sans-serif;">Verify Email</a>'
+            f'</td></tr></table></td></tr>'
+            f'<tr><td style="padding:12px 0 0;text-align:center;font-size:12px;color:#52525B;'
+            f'font-family:Arial,Helvetica,sans-serif;">Or copy this link: {verification_link}</td></tr>'
+        )
+
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+<meta name="color-scheme" content="dark"/>
+<meta name="supported-color-schemes" content="dark"/>
+<title>Verify your Lynkr account</title>
+<!--[if mso]><style>table,td{{font-family:Arial,Helvetica,sans-serif !important;}}</style><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#08090C;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+
+<!-- Preheader (hidden preview text) -->
+<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#08090C;">
+Your Lynkr verification code is {otp or "ready"} &mdash; enter it to get started.
+&#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847;
+</div>
+
+<!-- Outer wrapper -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="background-color:#08090C;min-height:100%;">
+<tr><td align="center" style="padding:32px 16px;">
+
+<!-- Card -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560"
+       style="max-width:560px;width:100%;border-radius:20px;overflow:hidden;
+              border:1px solid #1A1D24;">
+
+  <!-- Gradient header -->
+  <tr><td style="background:linear-gradient(135deg,#0F1219 0%,#161B26 40%,#1B2436 100%);
+                 padding:40px 40px 32px;text-align:center;">
+
+    <!-- Cursive brand name -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+    <tr>
+      <td style="font-size:42px;font-weight:400;color:#D4D4D8;
+                 font-family:'Brush Script MT','Segoe Script','Apple Chancery',cursive;
+                 letter-spacing:2px;text-align:center;">
+        Lynkr
+      </td>
+    </tr>
+    </table>
+
+    <!-- Accent line -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px auto 0;">
+    <tr>
+      <td style="width:40px;height:3px;border-radius:2px;
+                 background:linear-gradient(90deg,#3B82F6,#60A5FA);"></td>
+    </tr>
+    </table>
+
+    <!-- Tagline -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px auto 0;">
+    <tr>
+      <td style="font-size:13px;color:#71717A;font-family:Arial,Helvetica,sans-serif;
+                 letter-spacing:2.5px;text-transform:uppercase;font-weight:600;">
+        Verify Your Identity
+      </td>
+    </tr>
+    </table>
+  </td></tr>
+
+  <!-- Body -->
+  <tr><td style="background-color:#0F1117;padding:36px 40px 40px;">
+
+    <!-- Greeting -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr><td style="font-size:15px;color:#A1A1AA;font-family:Arial,Helvetica,sans-serif;
+                   padding-bottom:8px;">
+      {greeting}
+    </td></tr>
+
+    <!-- Headline -->
+    <tr><td style="font-size:22px;font-weight:700;color:#F4F4F5;
+                   font-family:Arial,Helvetica,sans-serif;padding-bottom:12px;
+                   line-height:1.3;">
+      Here&rsquo;s your verification code
+    </td></tr>
+
+    <!-- Subtext -->
+    <tr><td style="font-size:15px;color:#71717A;font-family:Arial,Helvetica,sans-serif;
+                   line-height:1.6;padding-bottom:28px;">
+      Enter this code in the Lynkr app to verify your email address.
+      It expires in {VERIFICATION_OTP_EXPIRE_MINUTES} minutes.
+    </td></tr>
+    </table>
+
+    <!-- OTP box -->
+    {"" if not otp else f'''
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+           style="margin-bottom:8px;">
+    <tr><td>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+             style="background-color:#12141B;border:1px solid #1E2130;border-radius:16px;
+                    padding:28px 24px;margin:0 auto;width:100%;">
+      <tr><td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>{otp_digits}</tr>
+        </table>
+      </td></tr>
+      </table>
+    </td></tr>
+    </table>
+    '''}
+
+    <!-- Security notice -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+           style="background-color:#12141B;border-radius:12px;border-left:3px solid #3B82F6;
+                  margin-top:20px;">
+    <tr><td style="padding:16px 20px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+      <tr>
+        <td style="font-size:13px;color:#A1A1AA;font-family:Arial,Helvetica,sans-serif;line-height:1.5;">
+          <span style="font-weight:600;color:#D4D4D8;">Didn&rsquo;t request this?</span><br/>
+          If you didn&rsquo;t create a Lynkr account, you can safely ignore this email.
+        </td>
+      </tr>
+      </table>
+    </td></tr>
+    </table>
+
+    <!-- CTA link row -->
+    {link_row}
+
+  </td></tr>
+
+  <!-- Divider -->
+  <tr><td style="background-color:#0F1117;padding:0 40px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr><td style="height:1px;background:linear-gradient(90deg,transparent,#1E2130,transparent);
+                   font-size:0;line-height:0;">&nbsp;</td></tr>
+    </table>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background-color:#0F1117;padding:24px 40px 32px;text-align:center;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr><td style="font-size:12px;color:#52525B;font-family:Arial,Helvetica,sans-serif;
+                   line-height:1.7;">
+      Sent by <span style="color:#71717A;font-weight:600;">Lynkr</span> &middot;
+      <a href="https://lynkr.club" style="color:#3B82F6;text-decoration:none;">lynkr.club</a><br/>
+      <a href="mailto:admin@lynkr.club" style="color:#52525B;text-decoration:none;">Need help? Contact us</a>
+    </td></tr>
+    </table>
+  </td></tr>
+
+</table>
+<!-- /Card -->
+
+</td></tr>
+</table>
+<!-- /Outer wrapper -->
+
+</body>
+</html>"""
     try:
         params = {
             "from": SENDER_EMAIL,
             "to": [email],
-            "subject": "Verify your Lynkr account",
-            "html": html_content
+            "subject": "Verify your Lynkr account – your verification code",
+            "html": html_content,
         }
         await asyncio.to_thread(resend.Emails.send, params)
-        logging.info(f"Verification email sent to {email}")
+        logging.info("Verification email sent to %s", email)
     except Exception as e:
-        logging.error(f"Failed to send verification email: {e}")
+        msg = str(e)
+        if "domain is not verified" in msg.lower() or "resend.com/domains" in msg:
+            logging.error(
+                "Failed to send verification email: %s. Add and verify your sending domain at https://resend.com/domains or set SENDER_EMAIL to a verified address.",
+                msg,
+            )
+        else:
+            logging.error("Failed to send verification email: %s", e)
+
+
+async def ensure_user_identity(user_doc: Dict[str, Any]) -> Dict[str, Any]:
+    if not user_doc or not user_doc.get("id"):
+        return user_doc
+
+    updates: Dict[str, Any] = {}
+    username = normalize_username(user_doc.get("username") or "")
+    if not USERNAME_REGEX.fullmatch(username):
+        base = normalize_username((user_doc.get("email") or "").split("@")[0])
+        base = re.sub(r"[^a-z0-9_]", "", base)[:16] or f"user{str(user_doc['id'])[:6]}"
+        candidate = base
+        suffix = 1
+        while await db.users.find_one({"username": candidate, "id": {"$ne": user_doc["id"]}}, {"_id": 0, "id": 1}):
+            candidate = f"{base}_{suffix}"
+            suffix += 1
+        username = candidate
+        updates["username"] = username
+
+    avatar = (user_doc.get("avatar") or "").strip()
+    if not is_valid_avatar(avatar):
+        avatar = DEFAULT_AVATAR
+        updates["avatar"] = avatar
+
+    if updates:
+        await db.users.update_one({"id": user_doc["id"]}, {"$set": updates})
+        user_doc = {**user_doc, **updates}
+    return user_doc
+
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
@@ -610,7 +912,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user = await db.users.find_one({"id": user_id}, {"_id": 0})
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-        
+        user = await ensure_user_identity(user)
         return User(**user)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
@@ -750,17 +1052,306 @@ async def _set_purchase_verification_status(
     )
     return {"success": True, "new_status": PurchaseStatus.REJECTED}
 
+
+def _domain_from_value(value: str) -> str:
+    if not value:
+        return ""
+    value = value.strip().lower()
+    if "@" in value:
+        return value.split("@", 1)[1]
+    if value.startswith("http://") or value.startswith("https://"):
+        host = value.split("://", 1)[1].split("/", 1)[0]
+        return host.replace("www.", "")
+    return value.replace("www.", "")
+
+
+def _pick_lynkr_recipient(recipients: List[str]) -> Optional[str]:
+    if not recipients:
+        return None
+    domain_suffix = f"@{ZOHO_MAIL_DOMAIN}"
+    for recipient in recipients:
+        candidate = (recipient or "").strip().lower()
+        if candidate.endswith(domain_suffix):
+            return candidate
+    return None
+
+
+async def _log_email_ingest(event_type: str, status: str, message: str, details: Optional[Dict[str, Any]] = None):
+    payload = {
+        "id": str(uuid.uuid4()),
+        "event_type": event_type,
+        "status": status,
+        "message": message,
+        "details": details or {},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.email_ingest_logs.insert_one(payload)
+
+
+async def _mark_email_processed(message_id: str, state: str, details: Optional[Dict[str, Any]] = None):
+    if not message_id:
+        return
+    await db.email_ingest_processed.update_one(
+        {"message_id": message_id},
+        {
+            "$set": {
+                "message_id": message_id,
+                "state": state,
+                "details": details or {},
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        },
+        upsert=True,
+    )
+
+
+async def _match_partner_from_email(sender_domain: str, parsed_partner_name: str) -> Optional[Dict[str, Any]]:
+    partners = await db.partners.find({}, {"_id": 0, "id": 1, "business_name": 1, "website": 1, "contact_email": 1, "status": 1}).to_list(2000)
+    if not partners:
+        return None
+
+    sender_domain = _domain_from_value(sender_domain)
+    if sender_domain:
+        for partner in partners:
+            website_domain = _domain_from_value(partner.get("website") or "")
+            contact_domain = _domain_from_value(partner.get("contact_email") or "")
+            extra_domains = [_domain_from_value(value) for value in (partner.get("domains") or [])] if isinstance(partner.get("domains"), list) else []
+            known_domains = {website_domain, contact_domain, *extra_domains}
+            known_domains = {domain for domain in known_domains if domain}
+            if sender_domain in known_domains:
+                return partner
+
+    normalized_target = re.sub(r"[^a-z0-9]", "", (parsed_partner_name or "").lower())
+    if normalized_target:
+        for partner in partners:
+            partner_name = re.sub(r"[^a-z0-9]", "", (partner.get("business_name") or "").lower())
+            if partner_name and (normalized_target in partner_name or partner_name in normalized_target):
+                return partner
+
+    return None
+
+
+async def _create_auto_purchase(
+    user_record: Dict[str, Any],
+    partner: Dict[str, Any],
+    parsed: Dict[str, Any],
+    sender_email: str,
+    message_id: str,
+):
+    order_id = (parsed.get("order_id") or "").strip()
+    transaction_id = (parsed.get("transaction_id") or "").strip()
+    amount = float(parsed.get("amount") or 0)
+
+    if amount <= 0:
+        raise ValueError("Invalid amount extracted from email")
+    if len(order_id) <= 5:
+        raise ValueError("Order ID is too short")
+    if not transaction_id:
+        raise ValueError("Transaction ID missing in email")
+
+    duplicate_query: Dict[str, Any] = {"$or": [{"order_id": order_id}, {"transaction_id": transaction_id}]}
+    duplicate = await db.purchases.find_one(duplicate_query, {"_id": 0, "id": 1})
+    if duplicate:
+        raise DuplicateKeyError("Duplicate order/transaction found")
+
+    purchase = Purchase(
+        user_id=user_record["id"],
+        brand=partner.get("business_name") or parsed.get("partner_name") or "Partner",
+        partner_id=partner.get("id"),
+        order_id=order_id,
+        transaction_id=transaction_id,
+        amount=amount,
+        status=PurchaseStatus.PENDING,
+        submitted_by_user=False,
+        source="EMAIL_AUTO",
+        verification_source=VerificationSource.AUTO,
+        category=SpendingCategory.OTHER,
+    )
+    purchase_doc = purchase.model_dump()
+    purchase_doc["timestamp"] = purchase.timestamp.isoformat()
+    purchase_doc["detected_at"] = purchase.detected_at.isoformat()
+    purchase_doc["email_message_id"] = message_id
+    purchase_doc["email_sender"] = sender_email
+    await db.purchases.insert_one(purchase_doc)
+
+    partner_order = PartnerOrder(
+        partner_id=partner.get("id"),
+        purchase_id=purchase.id,
+        user_lynkr_email=user_record.get("lynkr_email", ""),
+        order_id=order_id,
+        transaction_id=transaction_id,
+        amount=amount,
+        status="PENDING",
+    )
+    partner_doc = partner_order.model_dump()
+    partner_doc["created_at"] = partner_order.created_at.isoformat()
+    await db.partner_orders.insert_one(partner_doc)
+    return purchase
+
+
+async def run_email_ingest_cycle() -> Dict[str, int]:
+    if not EMAIL_INGEST_ENABLED or not email_ingest_service:
+        return {"processed": 0, "created": 0, "skipped": 0, "failed": 0}
+
+    messages = await email_ingest_service.fetch_all_unread(limit_per_mailbox=EMAIL_INGEST_BATCH_SIZE)
+    if not messages:
+        return {"processed": 0, "created": 0, "skipped": 0, "failed": 0}
+
+    partners = await db.partners.find({}, {"_id": 0, "id": 1, "website": 1, "contact_email": 1, "business_name": 1, "status": 1}).to_list(2000)
+    known_domains = []
+    for partner in partners:
+        for key in ("website", "contact_email"):
+            value = partner.get(key)
+            if value:
+                known_domains.append(_domain_from_value(value))
+
+    processed = created = skipped = failed = 0
+
+    for mail in messages:
+        processed += 1
+        message_id = mail.get("message_id")
+        account_id = mail.get("mailbox_account_id", "")
+        subject = mail.get("subject", "")
+        body = mail.get("body", "")
+        sender_email = (mail.get("sender_email") or "").strip().lower()
+        sender_domain = (mail.get("sender_domain") or _domain_from_value(sender_email)).strip().lower()
+        recipients = mail.get("recipients") or []
+        mailbox_email = mail.get("mailbox_email", "")
+
+        already_processed = await db.email_ingest_processed.find_one({"message_id": message_id}, {"_id": 0, "message_id": 1})
+        if already_processed:
+            skipped += 1
+            continue
+
+        if not is_purchase_email(subject=subject, body=body, sender_domain=sender_domain, known_partner_domains=known_domains):
+            skipped += 1
+            await _mark_email_processed(message_id, "ignored", {"reason": "non_purchase_email", "subject": subject[:120]})
+            continue
+
+        parsed = parse_purchase_email(email_body=body, subject=subject, sender_email=sender_email)
+        recipient_email = _pick_lynkr_recipient(recipients) or mailbox_email
+        if not recipient_email:
+            skipped += 1
+            await _log_email_ingest("ingest_skip", "skipped", "No Lynkr recipient found in email", {"message_id": message_id})
+            await _mark_email_processed(message_id, "skipped", {"reason": "recipient_not_found"})
+            continue
+
+        user_record = await db.users.find_one({"lynkr_email": recipient_email}, {"_id": 0})
+        if not user_record:
+            skipped += 1
+            await _log_email_ingest("ingest_skip", "skipped", "No user found for recipient email", {"message_id": message_id, "recipient_email": recipient_email})
+            await _mark_email_processed(message_id, "skipped", {"reason": "user_not_found", "recipient_email": recipient_email})
+            continue
+
+        partner = await _match_partner_from_email(sender_domain=sender_domain, parsed_partner_name=parsed.get("partner_name") or "")
+        if not partner:
+            skipped += 1
+            await _log_email_ingest("ingest_skip", "skipped", "Partner could not be matched", {"message_id": message_id, "sender_domain": sender_domain, "partner_name": parsed.get("partner_name")})
+            await _mark_email_processed(message_id, "skipped", {"reason": "partner_not_found"})
+            continue
+
+        try:
+            purchase = await _create_auto_purchase(
+                user_record=user_record,
+                partner=partner,
+                parsed=parsed,
+                sender_email=sender_email,
+                message_id=message_id,
+            )
+            created += 1
+            await _log_email_ingest(
+                "purchase_created",
+                "success",
+                "Automatic purchase created from email",
+                {"message_id": message_id, "purchase_id": purchase.id, "user_id": user_record.get("id"), "partner_id": partner.get("id")},
+            )
+            await _mark_email_processed(message_id, "created", {"purchase_id": purchase.id})
+            await email_ingest_service.mark_email_read(message_id, account_id)
+        except DuplicateKeyError:
+            skipped += 1
+            await _log_email_ingest("duplicate_skip", "skipped", "Duplicate order or transaction id detected", {"message_id": message_id, "order_id": parsed.get("order_id"), "transaction_id": parsed.get("transaction_id")})
+            await _mark_email_processed(message_id, "duplicate", {"order_id": parsed.get("order_id"), "transaction_id": parsed.get("transaction_id")})
+        except Exception as exc:
+            failed += 1
+            await _log_email_ingest("parse_failure", "error", f"Email ingestion failed: {exc}", {"message_id": message_id, "subject": subject[:120]})
+            await _mark_email_processed(message_id, "failed", {"error": str(exc)})
+
+    return {"processed": processed, "created": created, "skipped": skipped, "failed": failed}
+
+
+async def _email_ingest_worker():
+    logger.info("Email ingest worker started (interval=%ss)", EMAIL_INGEST_POLL_SECONDS)
+    while not email_ingest_stop_event.is_set():
+        try:
+            result = await run_email_ingest_cycle()
+            if result.get("processed", 0) > 0:
+                logger.info("Email ingest cycle: %s", result)
+        except Exception as exc:
+            logger.error("Email ingest cycle failed: %s", exc)
+        try:
+            await asyncio.wait_for(email_ingest_stop_event.wait(), timeout=EMAIL_INGEST_POLL_SECONDS)
+        except asyncio.TimeoutError:
+            continue
+    logger.info("Email ingest worker stopped")
+
 # ============ AUTH ENDPOINTS ============
+
+@api_router.get("/auth/check-username", response_model=UsernameAvailabilityResponse)
+async def check_username(username: str):
+    normalized = normalize_username(username)
+    if not USERNAME_REGEX.fullmatch(normalized):
+        return UsernameAvailabilityResponse(
+            username=username,
+            normalized_username=normalized,
+            available=False,
+            hint="Use 3-20 lowercase characters: letters, numbers, underscore",
+        )
+
+    existing = await db.users.find_one({"username": normalized}, {"_id": 0, "id": 1})
+    return UsernameAvailabilityResponse(
+        username=username,
+        normalized_username=normalized,
+        available=existing is None,
+        hint="Available" if existing is None else "Username is already taken",
+    )
+
+
+@api_router.post("/auth/send-signup-otp")
+async def send_signup_otp(body: RequestSignupOtp):
+    normalized_email = normalize_email(str(body.email))
+    existing = await db.users.find_one({"email": normalized_email}, {"_id": 0, "id": 1})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    otp = generate_verification_otp()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=VERIFICATION_OTP_EXPIRE_MINUTES)
+    await db.signup_otps.delete_many({"email": normalized_email})
+    await db.signup_otps.insert_one({
+        "email": normalized_email,
+        "otp": otp,
+        "expires_at": expires_at.isoformat(),
+    })
+    asyncio.create_task(
+        send_verification_email(normalized_email, "", "there", otp=otp)
+    )
+    return {"success": True, "message": "Verification code sent to your email"}
+
 
 @api_router.post("/auth/signup")
 async def signup(user_data: UserSignup):
+    if not user_data.terms_accepted:
+        raise HTTPException(status_code=400, detail="You must read and accept the Terms and Conditions to sign up")
     normalized_email = normalize_email(str(user_data.email))
-    username = (user_data.username or "").strip().lower()
-    if not re.fullmatch(r"[a-z0-9_]{3,30}", username):
+    username = normalize_username(user_data.username)
+    if len((user_data.password or "").strip()) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not USERNAME_REGEX.fullmatch(username):
         raise HTTPException(
             status_code=400,
-            detail="Username must be 3-30 chars and contain only lowercase letters, numbers, or underscore",
+            detail="Username must be 3-20 chars and contain only lowercase letters, numbers, or underscore",
         )
+    avatar = (user_data.avatar or "").strip()
+    if not is_valid_avatar(avatar):
+        raise HTTPException(status_code=400, detail="Please select a valid avatar")
 
     # Check if user exists
     existing = await db.users.find_one({"email": normalized_email}, {"_id": 0})
@@ -778,41 +1369,72 @@ async def signup(user_data: UserSignup):
     )
     if username_taken:
         raise HTTPException(status_code=400, detail="Username is already taken")
-    
-    verification_token = generate_verification_token()
-    
-    # Create user
+
+    # Verify signup OTP if provided (email verified during signup)
+    email_verified = False
+    signup_otp_clean = (user_data.signup_otp or "").strip().replace(" ", "")
+    if len(signup_otp_clean) == 6 and signup_otp_clean.isdigit():
+        doc_otp = await db.signup_otps.find_one({"email": normalized_email})
+        if doc_otp:
+            try:
+                expires_at = datetime.fromisoformat(doc_otp["expires_at"].replace("Z", "+00:00"))
+            except Exception:
+                expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+            if datetime.now(timezone.utc) <= expires_at and doc_otp.get("otp") == signup_otp_clean:
+                email_verified = True
+                await db.signup_otps.delete_many({"email": normalized_email})
+            else:
+                if datetime.now(timezone.utc) > expires_at:
+                    await db.signup_otps.delete_many({"email": normalized_email})
+                    raise HTTPException(status_code=400, detail="Verification code expired. Request a new code.")
+                raise HTTPException(status_code=400, detail="Invalid verification code")
+        else:
+            raise HTTPException(status_code=400, detail="Verification code expired or invalid. Request a new code.")
+    else:
+        raise HTTPException(status_code=400, detail="Please enter the 6-digit verification code sent to your email")
+
+    verification_token = generate_verification_token() if not email_verified else None
+
+    # Create user (email already verified when signup_otp was valid)
     user = User(
         email=normalized_email,
         password_hash=hash_password(user_data.password),
         full_name=user_data.full_name,
         username=username,
+        avatar=avatar,
         phone=user_data.phone,
         dob=user_data.dob.isoformat(),
         gender=user_data.gender,
         role=user_data.role,
         lynkr_email="",
-        verification_token=verification_token
+        verification_token=verification_token,
     )
     user.lynkr_email = generate_lynkr_email(username)
+    if email_verified:
+        user.email_verified = True
+        user.verification_token = None
 
+    # Provision Lynkr mailbox if enabled; do not block signup on failure
     zoho_provisioned = await provision_zoho_mailbox_if_enabled(
         username=username,
         full_name=user.full_name,
         email_address=user.lynkr_email,
+        mailbox_password=user_data.password,
     )
-    if ZOHO_MAIL_ENABLED and ZOHO_MAIL_REQUIRED_ON_SIGNUP and not zoho_provisioned:
-        raise HTTPException(
-            status_code=502,
-            detail="Unable to provision Lynkr mailbox right now. Please try again.",
-        )
-    
+    if ZOHO_MAIL_ENABLED and not zoho_provisioned:
+        logging.warning("Zoho mailbox provisioning failed for %s; user created without mailbox", user.lynkr_email)
+
     doc = user.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
+    doc["created_at"] = doc["created_at"].isoformat()
+    if not email_verified:
+        verification_otp = generate_verification_otp()
+        otp_expires_at = datetime.now(timezone.utc) + timedelta(minutes=VERIFICATION_OTP_EXPIRE_MINUTES)
+        doc["verification_otp"] = verification_otp
+        doc["verification_otp_expires_at"] = otp_expires_at.isoformat()
     await db.users.insert_one(doc)
-    
-    # Send verification email (non-blocking)
-    asyncio.create_task(send_verification_email(user.email, verification_token, user.full_name))
+
+    if not email_verified:
+        asyncio.create_task(send_verification_email(user.email, verification_token or "", user.full_name, otp=doc.get("verification_otp")))
     
     # Create token
     token = create_access_token({"sub": user.id, "role": user.role})
@@ -851,19 +1473,69 @@ async def verify_email(token: str):
     
     return {"success": True, "message": "Email verified successfully"}
 
+
+class VerifyEmailOtpRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
+@api_router.post("/auth/verify-email-otp")
+async def verify_email_otp(body: VerifyEmailOtpRequest):
+    normalized_email = normalize_email(str(body.email))
+    otp_digits = (body.otp or "").strip().replace(" ", "")
+    if len(otp_digits) != 6 or not otp_digits.isdigit():
+        raise HTTPException(status_code=400, detail="Please enter a valid 6-digit code")
+    user = await db.users.find_one({"email": normalized_email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found for this email")
+    if user.get("email_verified"):
+        return {"success": True, "message": "Email already verified"}
+    stored_otp = user.get("verification_otp")
+    expires_at_str = user.get("verification_otp_expires_at")
+    if not stored_otp or not expires_at_str:
+        raise HTTPException(status_code=400, detail="Verification code expired. Please request a new one.")
+    try:
+        expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Verification code expired. Please request a new one.")
+    if datetime.now(timezone.utc) > expires_at:
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$unset": {"verification_otp": "", "verification_otp_expires_at": ""}},
+        )
+        raise HTTPException(status_code=400, detail="Verification code expired. Please request a new one.")
+    if otp_digits != stored_otp:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {
+            "$set": {"email_verified": True},
+            "$unset": {"verification_token": "", "verification_otp": "", "verification_otp_expires_at": ""},
+        },
+    )
+    return {"success": True, "message": "Email verified successfully"}
+
+
 @api_router.post("/auth/resend-verification")
 async def resend_verification(user: User = Depends(get_current_user)):
     if user.email_verified:
         raise HTTPException(status_code=400, detail="Email already verified")
-    
     verification_token = generate_verification_token()
+    verification_otp = generate_verification_otp()
+    otp_expires_at = datetime.now(timezone.utc) + timedelta(minutes=VERIFICATION_OTP_EXPIRE_MINUTES)
     await db.users.update_one(
         {"id": user.id},
-        {"$set": {"verification_token": verification_token}}
+        {
+            "$set": {
+                "verification_token": verification_token,
+                "verification_otp": verification_otp,
+                "verification_otp_expires_at": otp_expires_at.isoformat(),
+            }
+        },
     )
-    
-    asyncio.create_task(send_verification_email(user.email, verification_token, user.full_name))
-    
+    asyncio.create_task(
+        send_verification_email(user.email, verification_token, user.full_name, otp=verification_otp)
+    )
     return {"success": True, "message": "Verification email sent"}
 
 @api_router.post("/auth/login")
@@ -878,6 +1550,7 @@ async def login(login_data: UserLogin):
         )
     if not user or not verify_password(login_data.password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    user = await ensure_user_identity(user)
     
     token = create_access_token({"sub": user['id'], "role": user['role']})
     
@@ -895,7 +1568,7 @@ async def login(login_data: UserLogin):
             lynkr_email=user['lynkr_email'],
             points=user['points'],
             email_verified=user.get('email_verified', False),
-            avatar=user.get('avatar'),
+            avatar=user.get('avatar') or DEFAULT_AVATAR,
             onboarding_complete=user.get('onboarding_complete', False),
             notification_preferences=user.get('notification_preferences', {}),
             privacy_settings=user.get('privacy_settings', {})
@@ -927,6 +1600,45 @@ async def get_current_user_info(user: User = Depends(get_current_user)):
 @api_router.put("/user/profile")
 async def update_profile(update: UserProfileUpdate, user: User = Depends(get_current_user)):
     update_data = {k: v for k, v in update.model_dump().items() if v is not None}
+
+    if "username" in update_data:
+        normalized_username = normalize_username(update_data["username"])
+        if not USERNAME_REGEX.fullmatch(normalized_username):
+            raise HTTPException(
+                status_code=400,
+                detail="Username must be 3-20 chars and contain only lowercase letters, numbers, or underscore",
+            )
+        if normalized_username != user.username:
+            user_record = await db.users.find_one({"id": user.id}, {"_id": 0, "username_changed_at": 1})
+            changed_at = user_record.get("username_changed_at") if user_record else None
+            if changed_at:
+                try:
+                    changed_time = datetime.fromisoformat(changed_at)
+                    if datetime.now(timezone.utc) - changed_time < timedelta(hours=USERNAME_CHANGE_COOLDOWN_HOURS):
+                        raise HTTPException(
+                            status_code=429,
+                            detail=f"You can change username once every {USERNAME_CHANGE_COOLDOWN_HOURS} hours",
+                        )
+                except ValueError:
+                    pass
+
+            existing = await db.users.find_one(
+                {"username": normalized_username, "id": {"$ne": user.id}},
+                {"_id": 0, "id": 1},
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail="Username is already taken")
+            update_data["username"] = normalized_username
+            update_data["username_changed_at"] = datetime.now(timezone.utc).isoformat()
+        else:
+            update_data.pop("username", None)
+
+    if "avatar" in update_data:
+        avatar = (update_data.get("avatar") or "").strip()
+        if not is_valid_avatar(avatar):
+            raise HTTPException(status_code=400, detail="Please select a valid avatar")
+        update_data["avatar"] = avatar
+
     if 'dob' in update_data:
         update_data['dob'] = update_data['dob'].isoformat()
     
@@ -1515,7 +2227,7 @@ async def get_points_ledger(user: User = Depends(get_current_user)):
 async def get_points_leaderboard(user: User = Depends(get_current_user)):
     top_users = await db.users.find(
         {"role": UserRole.USER},
-        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "points": 1}
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "username": 1, "avatar": 1, "points": 1}
     ).sort("points", -1).limit(20).to_list(20)
 
     if not top_users:
@@ -1541,6 +2253,8 @@ async def get_points_leaderboard(user: User = Depends(get_current_user)):
         leaderboard.append({
             "rank": idx,
             "user_id": u["id"],
+            "username": u.get("username") or _mask_username(u.get("full_name"), u.get("email"), u["id"]),
+            "avatar": u.get("avatar") or DEFAULT_AVATAR,
             "masked_username": _mask_username(u.get("full_name"), u.get("email"), u["id"]),
             "points": int(u.get("points", 0)),
             "coupons_redeemed": redemption_map.get(u["id"], 0),
@@ -1552,6 +2266,47 @@ async def get_points_leaderboard(user: User = Depends(get_current_user)):
         })
 
     return leaderboard
+
+
+@api_router.get("/community/redemptions")
+async def get_recent_community_redemptions(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.USER)
+    redemptions = await db.redemptions.find({}, {"_id": 0}).sort("redeemed_at", -1).limit(30).to_list(30)
+    if not redemptions:
+        return []
+
+    user_ids = sorted({item.get("user_id") for item in redemptions if item.get("user_id")})
+    coupon_ids = sorted({item.get("coupon_id") for item in redemptions if item.get("coupon_id")})
+    users = await db.users.find(
+        {"id": {"$in": user_ids}},
+        {"_id": 0, "id": 1, "username": 1, "avatar": 1, "points": 1},
+    ).to_list(len(user_ids))
+    coupons = await db.coupons.find({"id": {"$in": coupon_ids}}, {"_id": 0, "id": 1, "title": 1, "partner_id": 1}).to_list(len(coupon_ids))
+
+    user_map = {u["id"]: u for u in users}
+    coupon_map = {c["id"]: c for c in coupons}
+    partner_ids = sorted({c.get("partner_id") for c in coupons if c.get("partner_id")})
+    partner_map = {}
+    if partner_ids:
+        partners = await db.partners.find({"id": {"$in": partner_ids}}, {"_id": 0, "id": 1, "business_name": 1}).to_list(len(partner_ids))
+        partner_map = {p["id"]: p for p in partners}
+
+    result = []
+    for redemption in redemptions:
+        redemption_user = user_map.get(redemption.get("user_id"), {})
+        coupon = coupon_map.get(redemption.get("coupon_id"), {})
+        partner = partner_map.get(coupon.get("partner_id"), {})
+        result.append({
+            "id": redemption.get("id"),
+            "username": redemption_user.get("username", "lynkr_user"),
+            "avatar": redemption_user.get("avatar", DEFAULT_AVATAR),
+            "points": int(redemption_user.get("points", 0)),
+            "coupon_title": coupon.get("title"),
+            "partner_name": partner.get("business_name"),
+            "redeemed_at": redemption.get("redeemed_at"),
+        })
+
+    return result
 
 
 @api_router.post("/admin/coupons")
@@ -2007,6 +2762,57 @@ async def acknowledge_order(order_id: str, user: User = Depends(get_current_user
 
     return {"success": True, "message": "Order acknowledged and points credited"}
 
+
+@api_router.post("/partner/coupon-requests")
+async def create_partner_coupon_request(
+    payload: PartnerCouponRequestCreate, user: User = Depends(get_current_user)
+):
+    await require_role(user, UserRole.PARTNER)
+    partner_id = await _get_partner_id_for_user(user.id)
+
+    now = datetime.now(timezone.utc)
+    if payload.expiry_date and payload.expiry_date <= now:
+        raise HTTPException(status_code=400, detail="expiry_date must be in the future")
+    if payload.points_required <= 0:
+        raise HTTPException(status_code=400, detail="points_required must be > 0")
+    if payload.max_redemptions <= 0:
+        raise HTTPException(status_code=400, detail="max_redemptions must be > 0")
+
+    req = PartnerCouponRequest(
+        partner_id=partner_id,
+        title=payload.title,
+        description=payload.description,
+        discount_or_reward_details=payload.discount_or_reward_details or "",
+        points_required=payload.points_required,
+        expiry_date=payload.expiry_date,
+        max_redemptions=payload.max_redemptions,
+        terms_and_conditions=payload.terms_and_conditions or "",
+        status=PartnerCouponRequestStatus.PENDING,
+    )
+    doc = req.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    doc["expiry_date"] = req.expiry_date.isoformat()
+    await db.partner_coupon_requests.insert_one(doc)
+    return {"success": True, "request": doc}
+
+
+@api_router.get("/partner/coupon-requests")
+async def list_partner_coupon_requests(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.PARTNER)
+    partner_id = await _get_partner_id_for_user(user.id)
+    requests = await db.partner_coupon_requests.find(
+        {"partner_id": partner_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(500)
+    for r in requests:
+        if r.get("expiry_date") and hasattr(r["expiry_date"], "isoformat"):
+            r["expiry_date"] = r["expiry_date"].isoformat()
+        if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+            r["created_at"] = r["created_at"].isoformat()
+        if r.get("reviewed_at") and hasattr(r["reviewed_at"], "isoformat"):
+            r["reviewed_at"] = r["reviewed_at"].isoformat()
+    return requests
+
+
 # ============ ADMIN ENDPOINTS ============
 
 @api_router.get("/admin/users")
@@ -2014,6 +2820,8 @@ async def get_all_users(user: User = Depends(get_current_user)):
     await require_role(user, UserRole.ADMIN)
     
     users = await db.users.find({"role": UserRole.USER}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    for idx, user_item in enumerate(users):
+        users[idx] = await ensure_user_identity(user_item)
     return users
 
 
@@ -2137,6 +2945,21 @@ async def get_all_purchases(user: User = Depends(get_current_user)):
     purchases = await db.purchases.find({}, {"_id": 0}).sort("detected_at", -1).to_list(1000)
     return purchases
 
+
+@api_router.get("/admin/email-ingest/logs")
+async def get_email_ingest_logs(limit: int = 100, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    max_limit = max(1, min(limit, 500))
+    logs = await db.email_ingest_logs.find({}, {"_id": 0}).sort("created_at", -1).limit(max_limit).to_list(max_limit)
+    return logs
+
+
+@api_router.post("/admin/email-ingest/run")
+async def run_email_ingest_now(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    result = await run_email_ingest_cycle()
+    return {"success": True, **result}
+
 @api_router.post("/admin/verify-purchase/{purchase_id}")
 async def verify_purchase(purchase_id: str, action: str, user: User = Depends(get_current_user)):
     await require_role(user, UserRole.ADMIN)
@@ -2186,16 +3009,26 @@ async def create_partner(partner_data: PartnerCreate, user: User = Depends(get_c
     await db.partners.insert_one(doc)
     
     # Create user account for partner login
+    base_username = normalize_username((partner_data.contact_email or "").split("@")[0])
+    base_username = re.sub(r"[^a-z0-9_]", "", base_username)[:16] or "partner"
+    partner_username = base_username
+    suffix = 1
+    while await db.users.find_one({"username": partner_username}, {"_id": 0, "id": 1}):
+        partner_username = f"{base_username}_{suffix}"
+        suffix += 1
+
     user_account = User(
         email=partner_data.contact_email,
         password_hash=hash_password(temp_password),
         full_name=partner_data.contact_person or partner_data.business_name,
+        username=partner_username,
         phone="",
         dob=datetime.now().date().isoformat(),
         gender="",
         role=UserRole.PARTNER,
         lynkr_email="",  # Partners don't get Lynkr email
-        email_verified=True
+        email_verified=True,
+        avatar=DEFAULT_AVATAR,
     )
     
     user_doc = user_account.model_dump()
@@ -2224,6 +3057,115 @@ async def update_partner_status(partner_id: str, new_status: str, user: User = D
     )
     
     return {"success": True}
+
+
+@api_router.post("/admin/partners/{partner_id}/reset-password")
+async def admin_reset_partner_password(partner_id: str, user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    partner = await db.partners.find_one({"id": partner_id}, {"_id": 0})
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    temp_password = generate_random_password()
+    new_hash = hash_password(temp_password)
+    await db.partners.update_one(
+        {"id": partner_id},
+        {"$set": {"password_hash": new_hash, "temp_password": temp_password, "must_change_password": True}}
+    )
+    partner_user = await db.users.find_one({"partner_id": partner_id}, {"_id": 0, "id": 1})
+    if partner_user:
+        await db.users.update_one(
+            {"id": partner_user["id"]},
+            {"$set": {"password_hash": new_hash}}
+        )
+    return {"success": True, "temp_password": temp_password, "message": "Password reset. Share the temporary password with the partner."}
+
+
+@api_router.get("/admin/coupon-requests")
+async def admin_list_coupon_requests(user: User = Depends(get_current_user)):
+    await require_role(user, UserRole.ADMIN)
+    requests = await db.partner_coupon_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    partner_ids = sorted({r.get("partner_id") for r in requests if r.get("partner_id")})
+    partners = await db.partners.find({"id": {"$in": partner_ids}}, {"_id": 0, "id": 1, "business_name": 1}).to_list(len(partner_ids))
+    partner_map = {p["id"]: p for p in partners}
+    for r in requests:
+        r["partner_name"] = partner_map.get(r.get("partner_id"), {}).get("business_name")
+        if r.get("expiry_date") and hasattr(r["expiry_date"], "isoformat"):
+            r["expiry_date"] = r["expiry_date"].isoformat()
+        if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+            r["created_at"] = r["created_at"].isoformat()
+        if r.get("reviewed_at") and hasattr(r["reviewed_at"], "isoformat"):
+            r["reviewed_at"] = r["reviewed_at"].isoformat()
+    return requests
+
+
+@api_router.patch("/admin/coupon-requests/{request_id}")
+async def admin_update_coupon_request(
+    request_id: str, payload: PartnerCouponRequestUpdate, user: User = Depends(get_current_user)
+):
+    await require_role(user, UserRole.ADMIN)
+    req = await db.partner_coupon_requests.find_one({"id": request_id}, {"_id": 0})
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.get("status") != PartnerCouponRequestStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Only pending requests can be updated")
+
+    updates = payload.model_dump(exclude_unset=True)
+    new_status = updates.get("status")
+
+    if new_status == PartnerCouponRequestStatus.REJECTED:
+        updates["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+        updates["reviewed_by"] = user.id
+        await db.partner_coupon_requests.update_one({"id": request_id}, {"$set": updates})
+        return {"success": True, "message": "Request rejected"}
+
+    if new_status == PartnerCouponRequestStatus.APPROVED:
+        partner_id = req.get("partner_id")
+        partner = await db.partners.find_one({"id": partner_id}, {"_id": 0, "id": 1})
+        if not partner:
+            raise HTTPException(status_code=404, detail="Partner not found")
+        coupon_code = updates.get("coupon_code") or req.get("coupon_code") or f"LYNKR-{uuid.uuid4().hex[:8].upper()}"
+        value_type = updates.get("value_type") or req.get("value_type") or "fixed"
+        value = updates.get("value") if updates.get("value") is not None else req.get("value", 0)
+        if value <= 0 and value_type == "fixed":
+            value = 100
+        expiry = req.get("expiry_date")
+        if isinstance(expiry, str):
+            exp_dt = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+        elif hasattr(expiry, "isoformat"):
+            exp_dt = expiry
+        else:
+            raise HTTPException(status_code=400, detail="Invalid expiry_date on request")
+        points_cost = updates.get("points_required") or req.get("points_required")
+        total_quantity = updates.get("max_redemptions") or req.get("max_redemptions")
+        coupon = Coupon(
+            partner_id=partner_id,
+            title=updates.get("title") or req.get("title"),
+            description=updates.get("description") or req.get("description"),
+            coupon_code=coupon_code,
+            value_type=value_type,
+            value=float(value),
+            min_purchase=None,
+            points_cost=points_cost,
+            expiry_date=exp_dt,
+            total_quantity=total_quantity,
+            is_active=True,
+        )
+        cdoc = coupon.model_dump()
+        cdoc["created_at"] = cdoc["created_at"].isoformat()
+        cdoc["expiry_date"] = coupon.expiry_date.isoformat()
+        await db.coupons.insert_one(cdoc)
+        updates["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+        updates["reviewed_by"] = user.id
+        updates["status"] = PartnerCouponRequestStatus.APPROVED
+        await db.partner_coupon_requests.update_one({"id": request_id}, {"$set": updates})
+        return {"success": True, "message": "Request approved and coupon created", "coupon_id": coupon.id}
+    updates.pop("status", None)
+    if updates.get("expiry_date") and hasattr(updates["expiry_date"], "isoformat"):
+        updates["expiry_date"] = updates["expiry_date"].isoformat()
+    if updates:
+        await db.partner_coupon_requests.update_one({"id": request_id}, {"$set": updates})
+    return {"success": True}
+
 
 # ============ SURVEY ENDPOINTS ============
 
@@ -2403,7 +3345,21 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=(
+        [
+            origin.strip()
+            for origin in os.environ.get(
+                "CORS_ORIGINS",
+                "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173",
+            ).split(",")
+            if origin.strip() and origin.strip() != "*"
+        ]
+        or [FRONTEND_URL]
+    ),
+    allow_origin_regex=os.environ.get(
+        "CORS_ORIGIN_REGEX",
+        r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?$",
+    ),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -2427,11 +3383,19 @@ async def startup_db_indexes():
             else:
                 raise
 
-    await create_index_safe(db.users, [("username", 1)], unique=True, sparse=True)
+    # Use explicit names to avoid conflict with existing indexes that may have been created with sparse=True
+    await create_index_safe(
+        db.users,
+        [("username", 1)],
+        unique=True,
+        name="username_unique_partial",
+        partialFilterExpression={"username": {"$type": "string"}},
+    )
     await create_index_safe(
         db.users,
         [("lynkr_email", 1)],
         unique=True,
+        name="lynkr_email_unique_partial",
         partialFilterExpression={"role": UserRole.USER},
     )
     await create_index_safe(db.coupons, [("expiry_date", 1)])
@@ -2443,8 +3407,32 @@ async def startup_db_indexes():
     await create_index_safe(db.redemptions, [("user_id", 1), ("coupon_id", 1)], unique=True)
     await create_index_safe(db.purchases, [("user_id", 1), ("timestamp", -1)])
     await create_index_safe(db.purchases, [("partner_id", 1), ("status", 1), ("timestamp", -1)])
+    await create_index_safe(db.purchases, [("order_id", 1)])
+    await create_index_safe(db.purchases, [("transaction_id", 1)])
     await create_index_safe(db.partner_orders, [("partner_id", 1), ("status", 1), ("created_at", -1)])
+    await create_index_safe(db.email_ingest_processed, [("message_id", 1)], unique=True)
+    await create_index_safe(db.email_ingest_logs, [("created_at", -1)])
+    await create_index_safe(db.email_ingest_logs, [("event_type", 1), ("created_at", -1)])
+
+    await create_index_safe(db.zoho_mail_tokens, [("zoho_account_id", 1)], unique=True)
+    await create_index_safe(db.zoho_mail_tokens, [("lynkr_email", 1)], unique=True)
+
+    global email_ingest_service, email_ingest_task
+    email_ingest_service = EmailIngestService(db=db)
+    email_ingest_stop_event.clear()
+    if EMAIL_INGEST_ENABLED:
+        email_ingest_task = asyncio.create_task(_email_ingest_worker())
+    else:
+        logger.info("Email ingest worker is disabled via EMAIL_INGEST_ENABLED")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    global email_ingest_task
+    email_ingest_stop_event.set()
+    if email_ingest_task:
+        try:
+            await asyncio.wait_for(email_ingest_task, timeout=5)
+        except Exception:
+            email_ingest_task.cancel()
+        email_ingest_task = None
     client.close()

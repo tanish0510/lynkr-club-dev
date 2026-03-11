@@ -2,19 +2,20 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Gift, Copy } from "lucide-react";
+import { Gift, Copy, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/utils/api";
-import DashboardLayout from "@/components/DashboardLayout";
+import useIsMobile from "@/hooks/useIsMobile";
 import PointsCard from "@/components/rewards/PointsCard";
 import RewardsList from "@/components/rewards/RewardsList";
 import RedeemModal from "@/components/rewards/RedeemModal";
+import PullToRefresh from "@/components/mobile/PullToRefresh";
 
 const RewardsPage = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [points, setPoints] = useState(0);
   const [coupons, setCoupons] = useState([]);
-  const [redemptions, setRedemptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState(null);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
@@ -26,14 +27,12 @@ const RewardsPage = () => {
 
   const fetchRewardsData = async () => {
     try {
-      const [dashboardRes, couponsRes, redemptionsRes] = await Promise.all([
+      const [dashboardRes, couponsRes] = await Promise.all([
         api.get("/user/dashboard"),
         api.get("/coupons"),
-        api.get("/coupons/redemptions"),
       ]);
       setPoints(dashboardRes.data.points || 0);
       setCoupons(couponsRes.data || []);
-      setRedemptions(redemptionsRes.data || []);
     } catch (error) {
       toast.error("Failed to load rewards");
     } finally {
@@ -92,78 +91,84 @@ const RewardsPage = () => {
     []
   );
 
+  const featuredRewards = coupons.slice(0, 4);
+
   return (
-    <DashboardLayout>
+      <PullToRefresh onRefresh={fetchRewardsData}>
       <motion.div
-        className="max-w-6xl mx-auto px-6 py-12"
-        initial={{ opacity: 0, y: 10 }}
+        className="max-w-6xl mx-auto px-4 sm:px-5 py-4 md:py-10 pb-24 md:pb-10"
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
+        transition={{ duration: 0.22 }}
       >
-        <motion.div className="text-center mb-12" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }}>
-          <div className="inline-flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full mb-4">
-            <Gift className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium text-primary">Rewards</span>
+        {/* Header: compact on mobile */}
+        <motion.header
+          className="mb-4 md:mb-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div className="inline-flex items-center gap-2 bg-primary/15 px-3 py-1.5 rounded-full mb-2 md:mb-3">
+            <Gift className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+            <span className="text-xs md:text-sm font-medium text-primary">Rewards</span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold font-heading mb-4">Redeem Real Coupons</h1>
-          <p className="text-xl text-muted-foreground mb-6">Live offers from Lynkr partners</p>
-          <div className="flex justify-center mb-6">
+          <h1 className="text-2xl md:text-5xl font-bold font-heading mb-1 md:mb-2">Rewards</h1>
+          <p className="text-xs md:text-lg text-muted-foreground mb-4 md:mb-5">
+            Redeem your points for offers.
+          </p>
+          <div className={`flex flex-col gap-3 md:gap-4 ${isMobile ? "w-full" : "flex-row flex-wrap items-start"}`}>
+            <div className={isMobile ? "w-full" : "inline-block"}>
+              <PointsCard points={points} />
+            </div>
             <Button
               variant="outline"
-              className="rounded-full"
-              onClick={() => navigate("/community")}
+              size="sm"
+              className="w-full sm:w-auto min-h-[44px] rounded-xl text-sm shrink-0"
+              onClick={() => navigate("/app/community")}
             >
-              View Community Leaderboard
+              View leaderboard
             </Button>
           </div>
+        </motion.header>
 
-          <PointsCard points={points} />
-        </motion.div>
+        {/* Featured strip: horizontal scroll on mobile, optional on desktop */}
+        {featuredRewards.length > 0 ? (
+          <section className="rounded-2xl md:rounded-3xl border border-white/10 bg-card/60 p-3 md:p-4 mb-4 md:mb-5">
+            <h2 className="text-sm md:text-lg font-semibold mb-3 px-0.5">Featured</h2>
+            <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1 snap-x snap-mandatory -mx-0.5">
+              {featuredRewards.map((reward) => (
+                <article
+                  key={reward.id}
+                  className={`flex-shrink-0 snap-start rounded-xl md:rounded-2xl border border-white/10 bg-background/60 p-3 md:p-4 ${isMobile ? "w-[160px]" : "min-w-[200px]"}`}
+                >
+                  <p className="text-[11px] md:text-xs text-primary font-medium truncate">{reward.partner_name || "Partner"}</p>
+                  <h3 className="mt-1 text-sm md:text-base font-medium line-clamp-2">{reward.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1.5">{reward.points_cost} pts</p>
+                  <Button
+                    className="w-full min-h-[44px] mt-2.5 rounded-xl text-xs"
+                    size="sm"
+                    onClick={() => setSelectedCoupon(reward)}
+                    disabled={points < reward.points_cost}
+                  >
+                    Redeem
+                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Button>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-        <RewardsList
-          coupons={coupons}
-          points={points}
-          redeeming={redeeming}
-          loading={loading}
-          onSelect={(coupon) => setSelectedCoupon(coupon)}
-        />
-
-        <section className="mt-12 pt-8 border-t border-white/5">
-          <div className="mb-4">
-            <h2 className="text-3xl font-bold font-heading">My Rewards Activity</h2>
-            <p className="text-sm text-muted-foreground">
-              View your personal redemption timeline with coupon IDs and codes.
-            </p>
-          </div>
-          <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8">
-            <h3 className="text-2xl font-bold font-heading mb-4">My Redeemed History</h3>
-            {redemptions.length === 0 ? (
-              <p className="text-muted-foreground">No coupons redeemed yet.</p>
-            ) : (
-              <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-                {redemptions.map((item) => (
-                  <div key={item.id} className="bg-secondary/30 rounded-2xl p-4 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{item.coupon_title || "Coupon"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        ID: {item.coupon_id} {item.partner_name ? `• ${item.partner_name}` : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Redeemed: {new Date(item.redeemed_at).toLocaleString()} • -{item.points_deducted} points
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono bg-black/20 px-2 py-1 rounded">{item.coupon_code}</span>
-                      <Button size="sm" variant="outline" onClick={() => copyCouponCode(item.coupon_code)}>
-                        <Copy className="w-3 h-3 mr-1" />
-                        Copy
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* All rewards list */}
+        <section className="mb-6 md:mb-8">
+          <h2 className="text-base md:text-xl font-semibold mb-3 px-0.5">All rewards</h2>
+          <RewardsList
+            coupons={coupons}
+            points={points}
+            redeeming={redeeming}
+            loading={loading}
+            onSelect={(coupon) => setSelectedCoupon(coupon)}
+          />
         </section>
 
         <RedeemModal
@@ -192,7 +197,7 @@ const RewardsPage = () => {
           ) : null}
         </AnimatePresence>
       </motion.div>
-    </DashboardLayout>
+      </PullToRefresh>
   );
 };
 

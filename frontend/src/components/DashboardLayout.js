@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Gift, Settings, LogOut, LayoutDashboard, ShoppingBag, Users, Trophy } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 const DashboardLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -30,9 +31,8 @@ const DashboardLayout = ({ children }) => {
 
   // Partner navigation items
   const partnerNavItems = [
-    { path: '/partner-dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/partner-orders', icon: ShoppingBag, label: 'Orders' },
-    { path: '/partner-settings', icon: Settings, label: 'Settings' },
+    { path: '/partner/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/partner/dashboard/orders', icon: ShoppingBag, label: 'Orders' },
   ];
 
   // Admin navigation items
@@ -48,22 +48,22 @@ const DashboardLayout = ({ children }) => {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
       <header data-testid="common-header" className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div 
-              className="text-2xl font-heading font-bold tracking-tight cursor-pointer hover:text-primary transition-colors"
-              onClick={() => navigate(user.role === 'USER' ? '/dashboard' : user.role === 'PARTNER' ? '/partner-dashboard' : '/admin')}
+              className="cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => navigate(user.role === 'USER' ? '/dashboard' : user.role === 'PARTNER' ? '/partner/dashboard' : '/admin')}
             >
-              Lynkr
+              <Logo className="h-10 w-32" />
             </div>
             
-            <nav className="flex items-center gap-2">
+            <nav className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
               {navItems.map((item) => (
                 <Button
                   key={item.path}
                   data-testid={`nav-${item.label.toLowerCase()}`}
                   variant="ghost"
-                  className={`hover:bg-white/5 rounded-full ${
+                  className={`hover:bg-white/5 rounded-full min-h-11 ${
                     isActive(item.path) ? 'bg-primary/10 text-primary' : ''
                   }`}
                   onClick={() => navigate(item.path)}
@@ -76,7 +76,7 @@ const DashboardLayout = ({ children }) => {
               <Button
                 data-testid="logout-button"
                 variant="ghost"
-                className="hover:bg-white/5 rounded-full"
+                className="hover:bg-white/5 rounded-full min-h-11"
                 onClick={handleLogout}
               >
                 <LogOut className="w-4 h-4" />
@@ -92,8 +92,8 @@ const DashboardLayout = ({ children }) => {
       </main>
 
       {/* Footer */}
-      <footer data-testid="common-footer" className="border-t border-white/5 bg-background/50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+      <footer data-testid="common-footer" className="hidden md:block border-t border-white/5 bg-background/50 backdrop-blur-xl">
+        <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <h3 className="text-lg font-bold font-heading mb-4">Lynkr</h3>

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
@@ -107,18 +106,17 @@ const PartnerOrdersPage = () => {
   );
 
   return (
-    <DashboardLayout>
-      <div className="max-w-7xl mx-auto px-6 py-12">
+    <div className="max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold font-heading mb-2">Orders Management</h1>
+          <h1 className="text-3xl md:text-4xl font-bold font-heading mb-2">Orders Management</h1>
           <p className="text-muted-foreground">Review and acknowledge orders from Lynkr users</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-3 mb-8 bg-secondary/50 rounded-xl p-1">
-            <TabsTrigger value="all" className="rounded-lg">All Orders</TabsTrigger>
-            <TabsTrigger value="pending" className="rounded-lg">Pending</TabsTrigger>
-            <TabsTrigger value="acknowledged" className="rounded-lg">Acknowledged</TabsTrigger>
+            <TabsTrigger value="all" className="rounded-lg min-h-11">All Orders</TabsTrigger>
+            <TabsTrigger value="pending" className="rounded-lg min-h-11">Pending</TabsTrigger>
+            <TabsTrigger value="acknowledged" className="rounded-lg min-h-11">Acknowledged</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab}>
@@ -142,7 +140,7 @@ const PartnerOrdersPage = () => {
                 </p>
               </div>
             ) : (
-              <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8">
+              <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-4 md:p-8">
                 <div className="space-y-4">
                   {orders.map((order) => (
                     <OrderCard key={order.id} order={order} />
@@ -153,7 +151,6 @@ const PartnerOrdersPage = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
   );
 };
 

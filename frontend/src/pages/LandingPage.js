@@ -1,173 +1,329 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Mail, Shield, Sparkles, TrendingUp } from 'lucide-react';
+import {
+  Menu,
+  Wallet,
+  Sparkles,
+  Gift,
+  Users,
+  Building2,
+  Zap,
+  Lock,
+  Network,
+  BarChart3,
+  ArrowRight,
+} from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import WelcomeLayout from '@/components/onboarding/WelcomeLayout';
+import Logo from '@/components/Logo';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
+
+const NAV_LINKS = [
+  { label: 'Product', href: '#how-it-works' },
+  { label: 'Rewards', href: '#how-it-works' },
+  { label: 'Partners', path: '/partner' },
+];
+
+const STEPS = [
+  { icon: Wallet, title: 'Pay or transact', text: 'Shop with your Lynkr email at partner brands.' },
+  { icon: Sparkles, title: 'Earn points', text: 'Purchases are detected and points are credited automatically.' },
+  { icon: Gift, title: 'Redeem rewards', text: 'Turn points into coupons and offers from top brands.' },
+];
+
+const PORTALS = [
+  {
+    icon: Users,
+    title: 'User App',
+    description: 'Earn rewards and redeem points.',
+    label: 'Open App',
+    path: '/login',
+    variant: 'primary',
+  },
+  {
+    icon: Building2,
+    title: 'Partner Portal',
+    description: 'Manage transactions and customer rewards.',
+    label: 'Partner Login',
+    path: '/partner',
+    variant: 'outline',
+  },
+];
+
+const TRUST_ITEMS = [
+  { icon: Zap, title: 'Instant rewards', text: 'Points credited automatically.' },
+  { icon: Lock, title: 'Secure transactions', text: 'Your data stays protected.' },
+  { icon: Network, title: 'Partner network', text: 'Shop at trusted brands.' },
+  { icon: BarChart3, title: 'Smart analytics', text: 'Track and optimize rewards.' },
+];
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hasSeenWelcome = localStorage.getItem('hasSeenWelcome') === '1' || localStorage.getItem('hasSeenIntro') === '1';
+
+  if (user?.role === 'USER') return <Navigate to="/app/dashboard" replace />;
+  if (user?.role === 'PARTNER') return <Navigate to="/partner/dashboard" replace />;
+  if (user?.role === 'ADMIN') return <Navigate to="/admin" replace />;
+
+  if (!user && !hasSeenWelcome) {
+    return <WelcomeLayout onComplete={() => navigate('/signup')} onLogin={() => navigate('/login')} />;
+  }
+
+  const goTo = (path) => {
+    setMenuOpen(false);
+    navigate(path);
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
-          <div className="text-2xl font-heading font-bold tracking-tight">Lynkr</div>
-          <div className="flex items-center gap-4">
+      <header>
+        <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-white/5" aria-label="Main navigation">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-lg"
+            aria-label="Lynkr home"
+          >
+            <Logo className="h-10 w-28 sm:h-12 sm:w-36" />
+          </button>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-1">
+            {NAV_LINKS.map((link) => (
+              link.path ? (
+                <button
+                  key={link.label}
+                  onClick={() => goTo(link.path)}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center"
+                >
+                  {link.label}
+                </button>
+              ) : (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center"
+                >
+                  {link.label}
+                </a>
+              )
+            ))}
             <Button
               data-testid="login-button"
               variant="ghost"
-              className="hover:bg-white/5 text-foreground rounded-full"
-              onClick={() => navigate('/auth')}
+              className="min-h-[44px] rounded-xl text-foreground hover:bg-white/5"
+              onClick={() => goTo('/login')}
             >
               Login
             </Button>
+          </div>
+
+          {/* Mobile menu */}
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden min-h-[44px] min-w-[44px] rounded-xl"
+                aria-label="Open menu"
+              >
+                <Menu className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-full max-w-[280px] pt-8">
+              <div className="flex flex-col gap-2">
+                {NAV_LINKS.map((link) => (
+                  link.path ? (
+                    <button
+                      key={link.label}
+                      onClick={() => goTo(link.path)}
+                      className="min-h-[44px] px-4 py-3 rounded-xl text-foreground hover:bg-white/5 flex items-center font-medium text-left"
+                    >
+                      {link.label}
+                    </button>
+                  ) : (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      onClick={() => setMenuOpen(false)}
+                      className="min-h-[44px] px-4 py-3 rounded-xl text-foreground hover:bg-white/5 flex items-center font-medium"
+                    >
+                      {link.label}
+                    </a>
+                  )
+                ))}
+                <Button
+                  className="min-h-[44px] rounded-xl justify-start mt-4"
+                  onClick={() => goTo('/login')}
+                >
+                  Login
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </nav>
+      </header>
+
+      <main>
+      {/* Hero */}
+      <section className="pt-24 pb-16 md:pt-28 md:pb-24 px-4 sm:px-6 relative overflow-hidden" aria-labelledby="hero-heading">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
+        <div className="max-w-2xl mx-auto relative text-center">
+          <h1 id="hero-heading" className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight font-heading text-foreground leading-tight mb-4">
+            Turn everyday payments into rewards.
+          </h1>
+          <p className="text-base sm:text-lg text-muted-foreground mb-10 max-w-lg mx-auto">
+            Use your Lynkr email when you shop. We detect purchases and credit points automatically. Redeem for coupons and offers.
+          </p>
+          <div className="flex flex-col gap-3 sm:gap-4 max-w-sm mx-auto">
             <Button
-              data-testid="get-started-button"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 py-6 font-bold glow-primary"
-              onClick={() => navigate('/auth?mode=signup')}
+              data-testid="hero-get-started-button"
+              className="min-h-[48px] w-full rounded-2xl text-base font-semibold bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => goTo('/signup')}
             >
-              Get Started
-              <ArrowRight className="ml-2 w-5 h-5" />
+              Continue as User
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+            <Button
+              data-testid="partner-button"
+              variant="outline"
+              className="min-h-[48px] w-full rounded-2xl text-base font-medium border-white/15 bg-white/5 hover:bg-white/10"
+              onClick={() => goTo('/partner')}
+            >
+              Partner Login
             </Button>
           </div>
         </div>
-      </nav>
+      </section>
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-6 md:px-12">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-7 space-y-8">
-              <div className="inline-block">
-                <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground bg-secondary/50 px-4 py-2 rounded-full border border-white/10">
-                  First Rewards
-                </span>
+      {/* How it works */}
+      <section id="how-it-works" className="py-12 md:py-16 px-4 sm:px-6 bg-secondary/20" aria-labelledby="how-it-works-heading">
+        <div className="max-w-6xl mx-auto">
+          <h2 id="how-it-works-heading" className="text-2xl md:text-3xl font-bold font-heading text-center mb-8">
+            How it works
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2 md:overflow-visible md:grid md:grid-cols-3 md:gap-6 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+            {STEPS.map((step, i) => (
+              <div
+                key={step.title}
+                data-testid={`step-${i + 1}`}
+                className="flex-shrink-0 w-[280px] md:w-auto bg-card rounded-2xl border border-white/5 p-6 shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center mb-4">
+                  <step.icon className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="font-semibold font-heading text-foreground mb-2">{step.title}</h3>
+                <p className="text-sm text-muted-foreground">{step.text}</p>
               </div>
-              
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-none font-heading">
-                Shop Smart.
-                <br />
-                <span className="text-primary">Earn Rewards.</span>
-                <br />
-                Automatically.
-              </h1>
-              
-              <p className="text-lg md:text-xl leading-relaxed text-muted-foreground max-w-2xl">
-                Get your personal Lynkr email. Use it when shopping. We detect your purchases automatically and convert them into reward points. No tracking, no extensions, just trust.
-              </p>
-              
-              <div className="flex items-center gap-4">
-                <Button
-                  data-testid="hero-get-started-button"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95 rounded-full px-8 py-6 text-lg font-bold glow-primary"
-                  onClick={() => navigate('/auth?mode=signup')}
-                >
-                  Get Your Lynkr Email
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
-                <Button
-                  data-testid="partner-button"
-                  variant="outline"
-                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-full px-6 py-6 text-base font-medium border border-white/10 hover:border-white/20"
-                  onClick={() => navigate('/partner-program')}
-                >
-                  For Partners
-                </Button>
-              </div>
-            </div>
-            
-            <div className="lg:col-span-5">
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full"></div>
-                <img
-                  src="https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg"
-                  alt="Shopping"
-                  className="relative rounded-3xl shadow-2xl w-full h-auto"
-                />
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-20 px-6 md:px-12 bg-secondary/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight font-heading mb-4">
-              How Lynkr Works
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              Three simple steps to start earning rewards
+      {/* Portal selection */}
+      <section id="portals" className="py-12 md:py-16 px-4 sm:px-6" aria-labelledby="portals-heading">
+        <div className="max-w-6xl mx-auto">
+          <h2 id="portals-heading" className="text-2xl md:text-3xl font-bold font-heading text-center mb-8">
+            Choose your portal
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 max-w-2xl mx-auto">
+            {PORTALS.map((portal) => (
+              <div
+                key={portal.title}
+                className="rounded-2xl border border-white/5 bg-card p-6 shadow-sm flex flex-col min-h-[200px]"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center mb-4">
+                  <portal.icon className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="font-semibold font-heading text-lg text-foreground mb-2">{portal.title}</h3>
+                <p className="text-sm text-muted-foreground mb-6 flex-1">{portal.description}</p>
+                <Button
+                  variant={portal.variant}
+                  className={cn(
+                    'min-h-[44px] w-full rounded-xl font-medium',
+                    portal.variant === 'primary' && 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  )}
+                  onClick={() => goTo(portal.path)}
+                >
+                  {portal.label}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust / value */}
+      <section className="py-12 md:py-16 px-4 sm:px-6 bg-secondary/20" aria-labelledby="why-lynkr-heading">
+        <div className="max-w-4xl mx-auto">
+          <h2 id="why-lynkr-heading" className="text-2xl md:text-3xl font-bold font-heading text-center mb-8">
+            Why Lynkr
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+            {TRUST_ITEMS.map((item) => (
+              <div
+                key={item.title}
+                className="flex gap-4 p-4 rounded-2xl bg-card border border-white/5"
+              >
+                <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <item.icon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-12 px-4 sm:px-6 border-t border-white/5" aria-labelledby="contact-heading">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 id="contact-heading" className="text-2xl md:text-3xl font-bold font-heading mb-3">Contact Us</h2>
+          <p className="text-muted-foreground mb-6">Reach out for onboarding, demos, or support.</p>
+          <div className="space-y-2 text-sm md:text-base">
+            <p>
+              <span className="font-semibold">+91 9839662626</span> - Tanish
+            </p>
+            <p>
+              <span className="font-semibold">+91 8199040184</span> - Vaidant
+            </p>
+            <p>
+              <span className="font-semibold">admin@lynkr.club</span>
             </p>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div data-testid="step-1" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 relative overflow-hidden hover:border-white/10">
-              <div className="mb-6 w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center">
-                <Mail className="w-8 h-8 text-primary" />
-              </div>
-              <div className="text-6xl font-bold text-primary/10 absolute top-4 right-4 font-heading">1</div>
-              <h3 className="text-2xl font-semibold mb-4 font-heading">Get Your Email</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Sign up and receive your unique Lynkr email instantly. It's yours to keep and use for all your shopping.
-              </p>
-            </div>
-            
-            <div data-testid="step-2" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 relative overflow-hidden hover:border-white/10">
-              <div className="mb-6 w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-primary" />
-              </div>
-              <div className="text-6xl font-bold text-primary/10 absolute top-4 right-4 font-heading">2</div>
-              <h3 className="text-2xl font-semibold mb-4 font-heading">Shop Normally</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Use your Lynkr email when checking out at partner stores. Shop as you always do, no extra steps needed.
-              </p>
-            </div>
-            
-            <div data-testid="step-3" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 relative overflow-hidden hover:border-white/10">
-              <div className="mb-6 w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center">
-                <TrendingUp className="w-8 h-8 text-primary" />
-              </div>
-              <div className="text-6xl font-bold text-primary/10 absolute top-4 right-4 font-heading">3</div>
-              <h3 className="text-2xl font-semibold mb-4 font-heading">Earn Rewards</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                We automatically detect your purchases from confirmation emails and credit reward points to your account.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Trust Section */}
-      <section className="py-20 px-6 md:px-12">
-        <div className="max-w-4xl mx-auto text-center">
-          <Shield className="w-16 h-16 text-primary mx-auto mb-8" />
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight font-heading mb-6">
-            Trust. Privacy. Transparency.
-          </h2>
-          <p className="text-lg text-muted-foreground leading-relaxed mb-8">
-            Lynkr only reads purchase confirmation emails sent to your Lynkr email.
-            We never access your personal inbox. No tracking, no cookies, no browser extensions.
-            Your data is yours, always.
-          </p>
-          <Button
-            data-testid="cta-button"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95 rounded-full px-8 py-6 text-lg font-bold glow-primary"
-            onClick={() => navigate('/auth?mode=signup')}
-          >
-            Start Earning Rewards
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 md:px-12 border-t border-white/5">
-        <div className="max-w-7xl mx-auto text-center text-muted-foreground">
-          <p className="text-sm">&copy; 2025 Lynkr. All rights reserved.</p>
+      <footer className="py-8 md:py-10 px-4 sm:px-6 border-t border-white/5">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <Logo className="h-8 w-24 text-muted-foreground/80" />
+          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+            <a href="/terms" className="hover:text-foreground min-h-[44px] flex items-center">
+              Terms
+            </a>
+            <a href="/terms" className="hover:text-foreground min-h-[44px] flex items-center">
+              Privacy
+            </a>
+            <a href="/partner" className="hover:text-foreground min-h-[44px] flex items-center">
+              For Partners
+            </a>
+            <a href="mailto:admin@lynkr.club" className="hover:text-foreground min-h-[44px] flex items-center">
+              Contact
+            </a>
+          </div>
         </div>
+        <p className="max-w-6xl mx-auto mt-6 text-center text-xs text-muted-foreground">
+          &copy; {new Date().getFullYear()} Lynkr. All rights reserved.
+        </p>
       </footer>
+      </main>
     </div>
   );
 };

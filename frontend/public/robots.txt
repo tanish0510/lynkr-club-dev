@@ -1,0 +1,20 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Public marketing and partner pages
+Allow: /
+Allow: /partner
+Allow: /partners
+Allow: /partner/login
+Allow: /login
+Allow: /signup
+Allow: /terms
+Allow: /partner-pitch
+Allow: /partner-demo
+Allow: /partner-demo-dashboard
+Allow: /partner-demo-experience
+
+# Sitemaps
+Sitemap: https://lynkr.club/sitemap.xml
+Sitemap: https://lynkr.club/sitemap-partners.xml

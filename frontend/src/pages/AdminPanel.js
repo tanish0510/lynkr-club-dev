@@ -5,10 +5,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Users, Building2, ShoppingBag, LogOut, CheckCircle2, XCircle, Gift, Pencil, Trash2 } from 'lucide-react';
 import api from '@/utils/api';
+import AppAvatar from '@/components/Avatar';
+import { useAuth } from '@/contexts/AuthContext';
+
+const TAB_FROM_HASH = { users: 'users', partners: 'partners', coupons: 'coupons', purchases: 'purchases' };
 
 const AdminPanel = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
+  const hashTab = (location.hash || '#').slice(1).toLowerCase();
+  const activeTab = TAB_FROM_HASH[hashTab] || 'purchases';
+  const setActiveTab = (value) => navigate(`/admin#${value}`, { replace: true });
   const [users, setUsers] = useState([]);
   const [partners, setPartners] = useState([]);
   const [purchases, setPurchases] = useState([]);
@@ -70,6 +78,18 @@ const AdminPanel = () => {
       await fetchAllData();
     } catch (error) {
       toast.error('Update failed');
+    }
+  };
+
+  const handleResetPartnerPassword = async (partnerId) => {
+    if (!window.confirm('Reset this partner\'s password? They will need to set a new password on next login.')) return;
+    try {
+      const res = await api.post(`/admin/partners/${partnerId}/reset-password`);
+      const temp = res.data?.temp_password;
+      toast.success(temp ? `Password reset. Temporary password: ${temp} (share with partner)` : 'Password reset.');
+      await fetchAllData();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Reset failed');
     }
   };
 
@@ -190,31 +210,38 @@ const AdminPanel = () => {
     );
   }
 
-  const defaultTab = location.pathname.includes('/admin/coupons') ? 'coupons' : 'purchases';
+  const now = new Date();
+  const activeCoupons = coupons.filter((c) => c.is_active && new Date(c.expiry_date) > now);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <nav data-testid="admin-nav" className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="text-2xl font-heading font-bold tracking-tight">Lynkr Admin</div>
-          <Button
-            data-testid="admin-logout-button"
-            variant="ghost"
-            onClick={() => {
-              localStorage.removeItem('token');
-              navigate('/');
-            }}
-            className="hover:bg-white/5 rounded-full"
-          >
-            <LogOut className="w-4 h-4" />
-          </Button>
+    <div className="max-w-6xl">
+      <div data-testid="admin-panel" className="py-4">
+        <h1 className="text-2xl md:text-3xl font-bold font-heading mb-6">Overview</h1>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+          <div className="bg-card rounded-2xl border border-white/5 p-4 shadow-sm">
+            <p className="text-sm font-medium text-muted-foreground">Total users</p>
+            <p className="text-2xl font-bold font-heading mt-1">{users.length}</p>
+          </div>
+          <div className="bg-card rounded-2xl border border-white/5 p-4 shadow-sm">
+            <p className="text-sm font-medium text-muted-foreground">Total partners</p>
+            <p className="text-2xl font-bold font-heading mt-1">{partners.length}</p>
+          </div>
+          <div className="bg-card rounded-2xl border border-white/5 p-4 shadow-sm">
+            <p className="text-sm font-medium text-muted-foreground">Transactions</p>
+            <p className="text-2xl font-bold font-heading mt-1">{purchases.length}</p>
+          </div>
+          <div className="bg-card rounded-2xl border border-white/5 p-4 shadow-sm">
+            <p className="text-sm font-medium text-muted-foreground">Active coupons</p>
+            <p className="text-2xl font-bold font-heading mt-1">{activeCoupons.length}</p>
+          </div>
+          <div className="bg-card rounded-2xl border border-white/5 p-4 shadow-sm">
+            <p className="text-sm font-medium text-muted-foreground">All coupons</p>
+            <p className="text-2xl font-bold font-heading mt-1">{coupons.length}</p>
+          </div>
         </div>
-      </nav>
 
-      <div data-testid="admin-panel" className="max-w-7xl mx-auto px-6 py-12">
-        <h1 className="text-4xl font-bold font-heading mb-8">Admin Dashboard</h1>
-
-        <Tabs defaultValue={defaultTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList data-testid="admin-tabs" className="grid w-full max-w-2xl grid-cols-4 mb-8 bg-secondary/50 rounded-xl p-1">
             <TabsTrigger data-testid="purchases-tab" value="purchases" className="rounded-lg">
               <ShoppingBag className="w-4 h-4 mr-2" />
@@ -243,15 +270,21 @@ const AdminPanel = () => {
               ) : (
                 <div className="space-y-4">
                   {purchases.filter(p => p.status === 'PENDING').map((purchase) => (
+                    (() => {
+                      const purchaseUser = users.find((u) => u.id === purchase.user_id);
+                      return (
                     <div
                       key={purchase.id}
                       data-testid={`purchase-${purchase.id}`}
                       className="bg-secondary/30 rounded-2xl p-6 flex items-center justify-between"
                     >
-                      <div>
+                      <div className="flex items-center gap-3">
+                        <AppAvatar avatar={purchaseUser?.avatar} username={purchaseUser?.username} className="h-10 w-10" />
+                        <div>
                         <h4 className="font-semibold text-lg">{purchase.brand}</h4>
                         <p className="text-sm text-muted-foreground">Order #{purchase.order_id}</p>
-                        <p className="text-sm text-muted-foreground mt-1">User: {purchase.user_id.slice(0, 8)}</p>
+                        <p className="text-sm text-muted-foreground mt-1">User: {purchaseUser?.username || purchase.user_id.slice(0, 8)}</p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right mr-4">
@@ -277,6 +310,7 @@ const AdminPanel = () => {
                         </Button>
                       </div>
                     </div>
+                  )})()
                   ))}
                 </div>
               )}
@@ -294,9 +328,12 @@ const AdminPanel = () => {
                     data-testid={`user-${user.id}`}
                     className="bg-secondary/30 rounded-2xl p-6 flex items-center justify-between"
                   >
-                    <div>
-                      <h4 className="font-semibold text-lg">{user.email}</h4>
-                      <p className="text-sm text-muted-foreground">{user.lynkr_email}</p>
+                    <div className="flex items-center gap-3">
+                      <AppAvatar avatar={user.avatar} username={user.username} className="h-10 w-10" />
+                      <div>
+                        <h4 className="font-semibold text-lg">{user.username || user.email}</h4>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-bold text-primary">{user.points} pts</p>
@@ -335,7 +372,7 @@ const AdminPanel = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         data-testid={`activate-${partner.id}`}
                         onClick={() => handleUpdatePartnerStatus(partner.id, 'ACTIVE')}
@@ -351,6 +388,14 @@ const AdminPanel = () => {
                         className="bg-blue-500 hover:bg-blue-600 text-white rounded-full"
                       >
                         Set Pilot
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => handleResetPartnerPassword(partner.id)}
+                      >
+                        Reset password
                       </Button>
                     </div>
                   </div>

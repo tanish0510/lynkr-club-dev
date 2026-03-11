@@ -1,17 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { TrendingUp, Gift, Mail, Sparkles, ShoppingBag, PlusCircle, Copy } from 'lucide-react';
+import {
+  Sparkles,
+  PlusCircle,
+  Copy,
+  Gift,
+  Trophy,
+  Bot,
+  ArrowUpRight,
+  Handshake,
+} from 'lucide-react';
 import api from '@/utils/api';
+import PullToRefresh from '@/components/mobile/PullToRefresh';
+import InAppGuidedTour from '@/components/onboarding/InAppGuidedTour';
+import AppAvatar from '@/components/Avatar';
 
 const UserDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState(null);
+  const [community, setCommunity] = useState([]);
+  const [aiSnapshot, setAiSnapshot] = useState(null);
+  const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [displayPoints, setDisplayPoints] = useState(0);
 
   useEffect(() => {
     fetchDashboard();
@@ -19,8 +34,28 @@ const UserDashboard = () => {
 
   const fetchDashboard = async () => {
     try {
-      const response = await api.get('/user/dashboard');
-      setDashboard(response.data);
+      const [dashboardRes, leaderboardRes, aiRes, partnersRes] = await Promise.allSettled([
+        api.get('/user/dashboard'),
+        api.get('/points/leaderboard'),
+        api.get('/ai/insights'),
+        api.get('/partners/active'),
+      ]);
+
+      if (dashboardRes.status === 'fulfilled') {
+        setDashboard(dashboardRes.value.data);
+      } else {
+        throw new Error('dashboard failed');
+      }
+
+      if (leaderboardRes.status === 'fulfilled') {
+        setCommunity(leaderboardRes.value.data || []);
+      }
+      if (aiRes.status === 'fulfilled') {
+        setAiSnapshot(aiRes.value.data);
+      }
+      if (partnersRes.status === 'fulfilled') {
+        setPartners(partnersRes.value.data || []);
+      }
     } catch (_) {
       toast.error('Failed to load dashboard');
     } finally {
@@ -28,128 +63,216 @@ const UserDashboard = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'VERIFIED': return 'text-emerald-300';
-      case 'PENDING': return 'text-amber-300';
-      case 'REJECTED': return 'text-red-300';
-      default: return 'text-muted-foreground';
-    }
+  useEffect(() => {
+    if (!dashboard) return;
+    const start = displayPoints;
+    const target = Number(dashboard.points || 0);
+    const duration = 360;
+    const startAt = performance.now();
+    let raf;
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayPoints(Math.round(start + (target - start) * eased));
+      if (progress < 1) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboard?.points]);
+
+  const quickActions = useMemo(
+    () => [
+      { label: 'Raise Purchase', icon: PlusCircle, action: () => navigate('/app/purchases?raise=1') },
+      { label: 'View Rewards', icon: Gift, action: () => navigate('/app/rewards') },
+      { label: 'Community', icon: Trophy, action: () => navigate('/app/community') },
+    ],
+    [navigate]
+  );
+
+  const featuredRewards = dashboard?.available_rewards?.slice(0, 6) || [];
+  const communityLeader = community[0];
+  const registeredPartners = partners.slice(0, 6);
+
+  const getStatusBadge = (status) => {
+    if (status === 'VERIFIED') return 'bg-emerald-500/20 text-emerald-300';
+    if (status === 'REJECTED') return 'bg-red-500/20 text-red-300';
+    return 'bg-amber-500/20 text-amber-300';
   };
 
   if (loading || !dashboard) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading your dashboard...</p>
-          </div>
+      <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="h-24 rounded-3xl border border-white/10 bg-card/60 animate-pulse" />
+          ))}
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-7xl mx-auto px-6 py-12 animate-in fade-in-0">
-        <div className="bg-card/90 rounded-3xl border border-white/10 shadow-2xl p-8 md:p-12 mb-8 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
-          <div className="relative">
-            <p className="text-sm uppercase tracking-wide text-muted-foreground mb-2">Your Reward Points</p>
-            <h1 className="text-6xl md:text-8xl font-bold font-heading text-primary">{dashboard.points}</h1>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button
-                onClick={() => navigate('/purchases?raise=1')}
-                className="rounded-full px-7 py-6 bg-primary text-primary-foreground hover:bg-primary/90 glow-primary transition-transform duration-200 hover:scale-[1.02]"
-              >
-                <PlusCircle className="mr-2 w-5 h-5" />
-                Raise Purchase
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-full px-7 py-6"
-                onClick={() => navigate('/purchases')}
-              >
-                <ShoppingBag className="mr-2 w-5 h-5" />
-                Open Purchases
-              </Button>
-            </div>
+    <PullToRefresh onRefresh={fetchDashboard} className="max-w-6xl mx-auto px-4 py-6 md:py-10 space-y-5">
+      <section id="tour-points-card" className="rounded-3xl border border-white/10 bg-card/80 p-5 md:p-7">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Hello, {user?.full_name || 'Lynkr User'}</p>
+        <div className="mt-3 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Total points</p>
+            <h1 className="text-5xl md:text-6xl font-heading font-bold text-primary">{displayPoints}</h1>
           </div>
+          <Button
+            variant="ghost"
+            className="min-h-11 rounded-2xl"
+            onClick={() => {
+              navigator.clipboard.writeText(user?.lynkr_email || '');
+              toast.success('Lynkr email copied');
+            }}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy email
+          </Button>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-card/80 rounded-3xl border border-white/10 p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              <p className="font-medium">This Month</p>
-            </div>
-            <p className="text-3xl font-heading font-bold">₹{dashboard.month_spending.toFixed(2)}</p>
-          </div>
+      <section className="grid grid-cols-3 md:grid-cols-3 gap-3">
+        {quickActions.map((item) => (
+          <button
+            id={item.label === 'Raise Purchase' ? 'tour-raise-purchase' : undefined}
+            key={item.label}
+            type="button"
+            onClick={item.action}
+            className="rounded-2xl border border-white/10 bg-card/70 px-3 py-4 text-left transition-all duration-200 active:scale-[0.98] hover:border-white/20"
+          >
+            <item.icon className="h-5 w-5 text-primary mb-2" />
+            <p className="text-sm font-medium">{item.label}</p>
+          </button>
+        ))}
+      </section>
 
-          <div className="bg-card/80 rounded-3xl border border-white/10 p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Gift className="w-5 h-5 text-primary" />
-              <p className="font-medium">Rewards Available</p>
-            </div>
-            <p className="text-3xl font-heading font-bold">{dashboard.available_rewards.length}</p>
-          </div>
-
-          <div className="bg-card/80 rounded-3xl border border-white/10 p-6">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-3">
-                <Mail className="w-5 h-5 text-primary" />
-                <p className="font-medium">Lynkr Email</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full"
-                onClick={() => {
-                  navigator.clipboard.writeText(user?.lynkr_email || '');
-                  toast.success('Email copied');
-                }}
-              >
-                <Copy className="w-4 h-4" />
-              </Button>
-            </div>
-            <p className="text-sm font-mono break-all">{user?.lynkr_email}</p>
-          </div>
+      <section className="rounded-3xl border border-white/10 bg-card/70 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Recent Purchases</h2>
+          <Button variant="ghost" className="min-h-11 rounded-xl" onClick={() => navigate('/app/purchases')}>
+            View all
+          </Button>
         </div>
-
-        <div className="bg-card/80 rounded-3xl border border-white/10 p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold font-heading">Recent Activity</h2>
-            <Button variant="ghost" className="rounded-full" onClick={() => navigate('/purchases')}>
-              View All
-            </Button>
-          </div>
-          {dashboard.recent_purchases.length === 0 ? (
-            <p className="text-muted-foreground">No purchases detected yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {dashboard.recent_purchases.map((purchase) => (
-                <div key={purchase.id} className="rounded-2xl border border-white/5 bg-secondary/20 p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{purchase.brand}</p>
-                    <p className="text-xs text-muted-foreground">Order #{purchase.order_id}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">₹{purchase.amount}</p>
-                    <p className={`text-xs ${getStatusColor(purchase.status)}`}>{purchase.status}</p>
-                  </div>
-                </div>
-              ))}
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1 snap-x snap-mandatory">
+          {(dashboard.recent_purchases || []).slice(0, 8).map((purchase) => (
+            <article
+              key={purchase.id}
+              className="min-w-[240px] snap-start rounded-2xl border border-white/10 bg-background/60 p-4"
+            >
+              <p className="font-medium">{purchase.brand || 'Partner'}</p>
+              <p className="text-xs text-muted-foreground mt-1">Order #{purchase.order_id}</p>
+              <p className="mt-3 text-xl font-bold">₹{Number(purchase.amount || 0).toFixed(0)}</p>
+              <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs ${getStatusBadge(purchase.status)}`}>
+                {purchase.status}
+              </span>
+            </article>
+          ))}
+          {(!dashboard.recent_purchases || dashboard.recent_purchases.length === 0) && (
+            <div className="w-full rounded-2xl border border-dashed border-white/10 p-6 text-sm text-muted-foreground">
+              No purchases yet. Start by raising your first purchase.
             </div>
           )}
         </div>
+      </section>
 
-        <div className="mt-6 text-sm text-muted-foreground flex items-center gap-2">
-          <Sparkles className="w-4 h-4" />
-          Purchases are now managed from the dedicated Purchases section.
+      <section className="rounded-3xl border border-white/10 bg-card/70 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Featured Rewards</h2>
+          <Button variant="ghost" className="min-h-11 rounded-xl" onClick={() => navigate('/app/rewards')}>
+            Open rewards
+          </Button>
         </div>
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1 snap-x snap-mandatory">
+          {featuredRewards.map((reward) => (
+            <article key={reward.id} className="min-w-[220px] snap-start rounded-2xl border border-white/10 bg-background/60 p-4">
+              <p className="text-sm text-primary">{reward.partner_name || 'Partner Offer'}</p>
+              <h3 className="mt-1 font-semibold">{reward.title}</h3>
+              <p className="mt-3 text-sm text-muted-foreground">{reward.points_cost} points</p>
+            </article>
+          ))}
+          {featuredRewards.length === 0 && (
+            <div className="w-full rounded-2xl border border-dashed border-white/10 p-6 text-sm text-muted-foreground">
+              Rewards will appear here as soon as offers are available.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2">
+        <article className="rounded-3xl border border-white/10 bg-card/70 p-4 md:col-span-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Bot className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold">AI Insight</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {aiSnapshot?.monthly_trend || `You spent ₹${Number(dashboard.month_spending || 0).toFixed(0)} this month.`}
+          </p>
+          <Button className="w-full mt-4 min-h-11 rounded-xl" onClick={() => navigate('/app/ai')}>
+            Explore AI
+          </Button>
+        </article>
+
+        {communityLeader ? (
+          <article className="rounded-3xl border border-white/10 bg-card/70 p-4 md:col-span-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Trophy className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold">Community Highlight</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              <AppAvatar avatar={communityLeader.avatar} username={communityLeader.username} className="h-10 w-10" />
+              <p className="text-sm text-muted-foreground">
+                #{communityLeader.rank} {communityLeader.username || communityLeader.masked_username} has {communityLeader.points} points this week.
+              </p>
+            </div>
+            <Button variant="outline" className="w-full mt-4 min-h-11 rounded-xl" onClick={() => navigate('/app/community')}>
+              View Community
+            </Button>
+          </article>
+        ) : null}
+      </section>
+
+      {registeredPartners.length > 0 ? (
+        <section className="rounded-3xl border border-white/10 bg-card/70 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Handshake className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold">Registered Partners</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {registeredPartners.map((partner) => (
+              <div key={partner.id} className="rounded-xl border border-white/10 bg-background/60 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{partner.business_name}</p>
+                  <span className="text-[10px] uppercase tracking-wide text-primary">{partner.status}</span>
+                </div>
+                {partner.category ? <p className="text-xs text-muted-foreground mt-1">{partner.category}</p> : null}
+              </div>
+            ))}
+          </div>
+          <Button
+            variant="ghost"
+            className="w-full mt-3 min-h-11 rounded-xl"
+            onClick={() => navigate('/partner-program')}
+          >
+            Explore partners
+            <ArrowUpRight className="ml-2 h-4 w-4" />
+          </Button>
+        </section>
+      ) : null}
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Sparkles className="h-4 w-4" />
+        Scroll to explore rewards, community and AI updates.
       </div>
-    </DashboardLayout>
+      <InAppGuidedTour />
+    </PullToRefresh>
   );
 };
 

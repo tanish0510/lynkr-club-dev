@@ -100,7 +100,7 @@ const ChatPage = () => {
             <Button
               data-testid="back-to-dashboard-button"
               variant="ghost"
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/app/dashboard')}
               className="hover:bg-white/5 rounded-full"
             >
               <ArrowLeft className="mr-2 w-4 h-4" />

@@ -7,17 +7,26 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { ArrowLeft, User, Lock, Bell, Shield, Trash2, Mail, Loader2 } from 'lucide-react';
+import { User, Lock, Bell, Shield, Trash2, Mail, Loader2 } from 'lucide-react';
 import api from '@/utils/api';
+import AppAvatar from '@/components/Avatar';
+import AvatarPicker from '@/components/AvatarPicker';
+import UsernameInput from '@/components/UsernameInput';
+import { DEFAULT_AVATAR } from '@/constants/avatars';
+import BrandLoader from '@/components/BrandLoader';
+import { applyAvatarTheme } from '@/utils/avatarTheme';
 
 const SettingsPage = () => {
   const navigate = useNavigate();
-  const { user: authUser, logout } = useAuth();
+  const { logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [profileUsernameValid, setProfileUsernameValid] = useState(true);
   
   const [profileForm, setProfileForm] = useState({
     full_name: '',
+    username: '',
+    avatar: DEFAULT_AVATAR,
     phone: '',
     dob: '',
     gender: ''
@@ -51,10 +60,13 @@ const SettingsPage = () => {
       setUser(response.data);
       setProfileForm({
         full_name: response.data.full_name,
+        username: response.data.username || '',
+        avatar: response.data.avatar || DEFAULT_AVATAR,
         phone: response.data.phone,
         dob: response.data.dob,
         gender: response.data.gender
       });
+      applyAvatarTheme(response.data.avatar || DEFAULT_AVATAR);
       setNotificationPrefs(response.data.notification_preferences || notificationPrefs);
       setPrivacySettings(response.data.privacy_settings || privacySettings);
     } catch (error) {
@@ -139,43 +151,48 @@ const SettingsPage = () => {
   };
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
-    );
+    return <BrandLoader label="Loading your profile..." />;
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <Button
-          data-testid="back-to-dashboard-button"
-          variant="ghost"
-          onClick={() => navigate('/dashboard')}
-          className="mb-8 hover:bg-white/5 rounded-full"
-        >
-          <ArrowLeft className="mr-2 w-4 h-4" />
-          Back to Dashboard
-        </Button>
-
-        <h1 className="text-4xl font-bold font-heading mb-8">Settings</h1>
+      <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
+        <h1 className="text-3xl md:text-4xl font-bold font-heading mb-8">Settings</h1>
 
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList data-testid="settings-tabs" className="grid w-full grid-cols-4 mb-8 bg-secondary/50 rounded-xl p-1">
-            <TabsTrigger data-testid="profile-tab" value="profile" className="rounded-lg">
+          <TabsList
+            data-testid="settings-tabs"
+            className="mb-8 grid h-auto w-full grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-[#131722] p-1.5 md:grid-cols-4"
+          >
+            <TabsTrigger
+              data-testid="profile-tab"
+              value="profile"
+              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
+            >
               <User className="w-4 h-4 mr-2" />
               Profile
             </TabsTrigger>
-            <TabsTrigger data-testid="security-tab" value="security" className="rounded-lg">
+            <TabsTrigger
+              data-testid="security-tab"
+              value="security"
+              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
+            >
               <Lock className="w-4 h-4 mr-2" />
               Security
             </TabsTrigger>
-            <TabsTrigger data-testid="notifications-tab" value="notifications" className="rounded-lg">
+            <TabsTrigger
+              data-testid="notifications-tab"
+              value="notifications"
+              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
+            >
               <Bell className="w-4 h-4 mr-2" />
               Notifications
             </TabsTrigger>
-            <TabsTrigger data-testid="privacy-tab" value="privacy" className="rounded-lg">
+            <TabsTrigger
+              data-testid="privacy-tab"
+              value="privacy"
+              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
+            >
               <Shield className="w-4 h-4 mr-2" />
               Privacy
             </TabsTrigger>
@@ -185,6 +202,17 @@ const SettingsPage = () => {
           <TabsContent value="profile">
             <div data-testid="profile-settings" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8">
               <h2 className="text-2xl font-bold font-heading mb-6">Profile Information</h2>
+
+              <div className="mb-6 rounded-2xl border border-white/10 bg-secondary/20 p-4">
+                <div className="flex items-center gap-4">
+                  <AppAvatar avatar={profileForm.avatar} username={profileForm.username} className="h-16 w-16" />
+                  <div>
+                    <p className="font-semibold text-lg">{profileForm.username || user.username}</p>
+                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                    <p className="text-xs text-primary mt-1">{user.points} points</p>
+                  </div>
+                </div>
+              </div>
               
               {!user.email_verified && (
                 <div data-testid="email-verification-banner" className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 mb-6">
@@ -209,6 +237,19 @@ const SettingsPage = () => {
               )}
               
               <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <UsernameInput
+                  value={profileForm.username}
+                  onChange={(username) => setProfileForm({ ...profileForm, username })}
+                  onValidityChange={setProfileUsernameValid}
+                  currentUsername={user.username}
+                />
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Avatar</Label>
+                  <AvatarPicker
+                    value={profileForm.avatar}
+                    onChange={(avatar) => setProfileForm({ ...profileForm, avatar })}
+                  />
+                </div>
                 <div>
                   <Label htmlFor="full-name">Full Name</Label>
                   <Input
@@ -258,8 +299,8 @@ const SettingsPage = () => {
                 <Button
                   data-testid="save-profile-button"
                   type="submit"
-                  disabled={loading}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 py-3"
+                  disabled={loading || !profileUsernameValid}
+                  className="w-full sm:w-auto min-h-11 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 py-3"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Changes'}
                 </Button>
@@ -309,7 +350,7 @@ const SettingsPage = () => {
                   data-testid="change-password-button"
                   type="submit"
                   disabled={loading}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 py-3"
+                  className="w-full sm:w-auto min-h-11 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 py-3"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Change Password'}
                 </Button>
@@ -417,7 +458,7 @@ const SettingsPage = () => {
                   data-testid="delete-account-button"
                   onClick={handleDeleteAccount}
                   variant="destructive"
-                  className="rounded-full px-6 py-3"
+                  className="w-full sm:w-auto min-h-11 rounded-full px-6 py-3"
                 >
                   <Trash2 className="mr-2 w-4 h-4" />
                   Delete Account

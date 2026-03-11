@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import api from '@/utils/api';
 
 const AIChatbot = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -78,6 +80,7 @@ const AIChatbot = () => {
   };
 
   if (!user) return null;
+  if (location.pathname.startsWith('/app/ai')) return null;
 
   return (
     <>
@@ -86,7 +89,7 @@ const AIChatbot = () => {
         <button
           data-testid="open-chat-button"
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 bg-primary text-primary-foreground rounded-full p-4 shadow-lg hover:scale-110 transition-transform glow-primary"
+                className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-40 bg-primary text-primary-foreground rounded-full p-4 shadow-lg hover:scale-110 transition-transform glow-primary"
         >
           <MessageCircle className="w-6 h-6" />
         </button>
@@ -94,7 +97,7 @@ const AIChatbot = () => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div data-testid="chat-window" className="fixed bottom-6 right-6 z-50 w-96 h-[600px] bg-card border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+              <div data-testid="chat-window" className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-40 w-[calc(100vw-2rem)] max-w-96 h-[70vh] lg:h-[600px] bg-card border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="bg-primary/10 border-b border-white/10 p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">

@@ -3,10 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import DashboardLayout from '@/components/DashboardLayout';
+import { Plus } from 'lucide-react';
 import PurchaseList from '@/components/purchases/PurchaseList';
 import RaisePurchaseModal from '@/components/purchases/RaisePurchaseModal';
 import api from '@/utils/api';
+import PullToRefresh from '@/components/mobile/PullToRefresh';
 
 const PurchasesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,47 +89,62 @@ const PurchasesPage = () => {
     return normalizedPurchases.filter((p) => p.status === statusTab);
   }, [normalizedPurchases, statusTab]);
 
+  const openRaise = () => {
+    setEditingPurchase(null);
+    setModalOpen(true);
+  };
+
   return (
-    <DashboardLayout>
-      <div className="max-w-7xl mx-auto px-6 py-12 animate-in fade-in-0">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+    <>
+      <PullToRefresh onRefresh={fetchData} className="max-w-6xl mx-auto px-4 py-6 md:py-10 animate-in fade-in-0">
+        <div className="flex items-start justify-between gap-4 mb-5">
           <div>
-            <h1 className="text-4xl font-bold font-heading">Your Purchases</h1>
-            <p className="text-muted-foreground mt-1">Track and manage your orders</p>
+            <h1 className="text-2xl md:text-4xl font-bold font-heading">Purchases</h1>
+            <p className="text-sm text-muted-foreground mt-1">Track, verify and manage your orders.</p>
           </div>
-          <Button
-            className="rounded-full px-6 py-6 bg-primary hover:bg-primary/90 glow-primary transition-transform duration-200 hover:scale-[1.02]"
-            onClick={() => {
-              setEditingPurchase(null);
-              setModalOpen(true);
-            }}
-          >
-            Raise Purchase
-          </Button>
         </div>
 
         <Tabs value={statusTab} onValueChange={setStatusTab} className="w-full mb-6">
-          <TabsList className="grid w-full max-w-xl grid-cols-4 bg-secondary/50 rounded-xl p-1">
-            <TabsTrigger value="ALL" className="rounded-lg">All</TabsTrigger>
-            <TabsTrigger value="PENDING" className="rounded-lg">Pending</TabsTrigger>
-            <TabsTrigger value="VERIFIED" className="rounded-lg">Verified</TabsTrigger>
-            <TabsTrigger value="REJECTED" className="rounded-lg">Rejected</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-3 rounded-2xl border border-white/10 bg-[#131722] p-1.5">
+            <TabsTrigger
+              value="ALL"
+              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
+            >
+              All
+            </TabsTrigger>
+            <TabsTrigger
+              value="PENDING"
+              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
+            >
+              Pending
+            </TabsTrigger>
+            <TabsTrigger
+              value="VERIFIED"
+              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
+            >
+              Verified
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
         <PurchaseList
           purchases={filteredPurchases}
           loading={loading}
-          onRaiseFirstPurchase={() => {
-            setEditingPurchase(null);
-            setModalOpen(true);
-          }}
+          onRaiseFirstPurchase={openRaise}
           onEdit={(purchase) => {
             setEditingPurchase(purchase);
             setModalOpen(true);
           }}
         />
-      </div>
+      </PullToRefresh>
+
+      <Button
+        onClick={openRaise}
+        className="fixed bottom-24 right-4 z-30 h-14 w-14 rounded-full p-0 shadow-2xl lg:bottom-8 lg:right-8 transition-transform duration-200 active:scale-95"
+        aria-label="Raise purchase"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
 
       <RaisePurchaseModal
         open={modalOpen}
@@ -140,7 +156,7 @@ const PurchasesPage = () => {
         purchaseToEdit={editingPurchase}
         onSuccess={fetchData}
       />
-    </DashboardLayout>
+    </>
   );
 };
 

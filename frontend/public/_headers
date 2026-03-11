@@ -1,0 +1,7 @@
+# Optional: cache sitemaps briefly (search engines re-fetch periodically)
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+/sitemap-partners.xml
+  Cache-Control: public, max-age=3600
+/robots.txt
+  Cache-Control: public, max-age=86400

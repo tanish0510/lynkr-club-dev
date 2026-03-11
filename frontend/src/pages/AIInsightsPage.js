@@ -1,16 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Sparkles, TrendingUp, PieChart, User } from 'lucide-react';
+import { Sparkles, Send, Bot, UserRound } from 'lucide-react';
 import api from '@/utils/api';
-import DashboardLayout from '@/components/DashboardLayout';
 
 const AIInsights = () => {
   const [insights, setInsights] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const endRef = useRef(null);
 
   useEffect(() => {
     fetchInsights();
+    fetchHistory();
   }, []);
 
   const fetchInsights = async () => {
@@ -24,148 +29,187 @@ const AIInsights = () => {
     }
   };
 
+  const fetchHistory = async () => {
+    try {
+      const response = await api.get('/chat/history');
+      setMessages(response.data || []);
+    } catch (_) {
+      setMessages([]);
+    }
+  };
+
+  const suggestionPrompts = useMemo(
+    () => ['How can I earn more?', 'Best reward for me?', 'My spending pattern?'],
+    []
+  );
+
+  const sendMessage = async (messageOverride) => {
+    const message = (messageOverride || inputMessage).trim();
+    if (!message || sending) return;
+    const optimistic = {
+      id: String(Date.now()),
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setInputMessage('');
+    setSending(true);
+    try {
+      const response = await api.post('/chat', { message });
+      setMessages((prev) => [...prev, response.data]);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 60);
+    } catch (_) {
+      toast.error('Failed to send message');
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (loading) {
     return (
-      <DashboardLayout>
+      <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center">
             <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
             <p className="text-muted-foreground">Analyzing your spending patterns...</p>
           </div>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (!insights) {
     return (
-      <DashboardLayout>
-        <div className="max-w-5xl mx-auto px-6 py-12">
+        <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
           <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-10 text-center">
             <Sparkles className="w-12 h-12 text-primary mx-auto mb-4" />
             <h1 className="text-3xl font-bold font-heading mb-2">AI Insights unavailable</h1>
             <p className="text-muted-foreground mb-6">Could not load insights right now. Try again.</p>
-            <Button className="rounded-full" onClick={fetchInsights}>Retry</Button>
+            <Button className="rounded-full min-h-11" onClick={fetchInsights}>Retry</Button>
           </div>
         </div>
-      </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-5xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
+      <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
+        <div className="mb-6">
           <div className="inline-flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full mb-4">
             <Sparkles className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium text-primary">AI-Powered Insights</span>
+            <span className="text-sm font-medium text-primary">AI Assistant</span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold font-heading mb-4">Your Shopping Intelligence</h1>
-          <p className="text-xl text-muted-foreground">Understand your spending with AI</p>
+          <h1 className="text-3xl md:text-5xl font-bold font-heading mb-2">AI Insights & Chat</h1>
+          <p className="text-sm md:text-lg text-muted-foreground">Ask questions, get spending guidance, and optimize rewards.</p>
         </div>
 
-        {/* Spending Persona */}
-        <div data-testid="spending-persona-card" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 mb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center">
-              <User className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground uppercase tracking-wide">Your Shopping Persona</p>
-              <h2 data-testid="spending-persona" className="text-3xl font-bold font-heading text-primary">{insights.spending_persona}</h2>
-            </div>
-          </div>
-        </div>
+        <section className="grid gap-3 md:grid-cols-3 mb-5">
+          <article className="rounded-3xl border border-white/10 bg-card/80 p-4 md:col-span-2">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">This month</p>
+            <p className="text-2xl font-heading font-bold mt-1">₹{(insights.spending_total || 0).toFixed(0)} spent</p>
+            <p className="text-sm text-muted-foreground mt-2">{insights.monthly_trend}</p>
+          </article>
+          <article className="rounded-3xl border border-white/10 bg-card/80 p-4">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Persona</p>
+            <p className="text-lg font-semibold mt-1 text-primary">{insights.spending_persona}</p>
+          </article>
+        </section>
 
-        {/* Spending by Category */}
-        <div data-testid="category-breakdown-card" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <PieChart className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-bold font-heading">Spending by Category</h2>
+        <section className="rounded-3xl border border-white/10 bg-card/80 p-4 mb-5">
+          <h2 className="text-base font-semibold mb-3">Suggested prompts</h2>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {suggestionPrompts.map((prompt) => (
+              <Button
+                key={prompt}
+                variant="outline"
+                className="min-h-11 rounded-full whitespace-nowrap"
+                onClick={() => sendMessage(prompt)}
+              >
+                {prompt}
+              </Button>
+            ))}
           </div>
-          
-          {Object.keys(insights.spending_by_category).length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No spending data yet</p>
-          ) : (
-            <div className="space-y-4">
-              {Object.entries(insights.spending_by_category)
-                .sort(([, a], [, b]) => b - a)
-                .map(([category, amount]) => {
-                  const total = Object.values(insights.spending_by_category).reduce((sum, val) => sum + val, 0);
-                  const percentage = ((amount / total) * 100).toFixed(1);
-                  
-                  return (
-                    <div key={category} data-testid={`category-${category}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{category}</span>
-                        <span className="text-muted-foreground">₹{amount.toFixed(2)}</span>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-card/80 p-4">
+          <div className="h-[50vh] min-h-[360px] overflow-y-auto rounded-2xl border border-white/10 bg-background/40 p-3">
+            {messages.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-center">
+                <div>
+                  <Bot className="h-8 w-8 text-primary mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Start chatting with Lynkr AI.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {messages.slice(-25).map((msg, index) => (
+                  <div
+                    key={msg.id || index}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[84%] rounded-2xl px-3 py-2 text-sm ${
+                        msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary/60 text-foreground'
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center gap-1 text-[10px] opacity-70">
+                        {msg.role === 'user' ? <UserRound className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+                        <span>{msg.role === 'user' ? 'You' : 'Lynkr AI'}</span>
                       </div>
-                      <div className="h-3 bg-secondary/50 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
-                          style={{ width: `${percentage}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">{percentage}% of total</p>
+                      {msg.content}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
+                <div ref={endRef} />
+              </div>
+            )}
+          </div>
+
+          <form
+            className="mt-3 flex items-end gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              sendMessage();
+            }}
+          >
+            <Input
+              value={inputMessage}
+              onChange={(event) => setInputMessage(event.target.value)}
+              placeholder="Ask Lynkr AI about rewards and spending..."
+              className="h-12 rounded-xl"
+            />
+            <Button type="submit" className="min-h-11 rounded-xl px-4" disabled={sending || !inputMessage.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </section>
+
+        <section className="mt-5 grid gap-3 md:grid-cols-2">
+          <article data-testid="insights-card" className="rounded-3xl border border-white/10 bg-card/80 p-4">
+            <h3 className="font-semibold mb-2">Key Insights</h3>
+            <div className="space-y-2">
+              {insights.insights?.slice(0, 4).map((insight, index) => (
+                <p key={index} className="text-sm rounded-xl border border-white/10 bg-background/40 p-3">
+                  {insight}
+                </p>
+              ))}
             </div>
-          )}
-        </div>
-
-        {/* Top Category */}
-        <div data-testid="top-category-card" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <TrendingUp className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-bold font-heading">Top Category</h2>
-          </div>
-          <p data-testid="top-category" className="text-4xl font-bold font-heading text-primary mb-2">{insights.top_category}</p>
-          <p className="text-muted-foreground">{insights.monthly_trend}</p>
-        </div>
-
-        {/* Insights */}
-        <div data-testid="insights-card" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 mb-8">
-          <h2 className="text-2xl font-bold font-heading mb-6 flex items-center gap-3">
-            <Sparkles className="w-6 h-6 text-primary" />
-            Key Insights
-          </h2>
-          <div className="space-y-4">
-            {insights.insights.map((insight, index) => (
-              <div
-                key={index}
-                data-testid={`insight-${index}`}
-                className="bg-secondary/30 rounded-2xl p-4 flex items-start gap-3"
-              >
-                <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-primary text-sm font-bold">{index + 1}</span>
-                </div>
-                <p className="text-base leading-relaxed">{insight}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recommendations */}
-        <div data-testid="recommendations-card" className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8">
-          <h2 className="text-2xl font-bold font-heading mb-6">Recommendations</h2>
-          <div className="space-y-4">
-            {insights.recommendations.map((rec, index) => (
-              <div
-                key={index}
-                data-testid={`recommendation-${index}`}
-                className="bg-accent/10 border border-accent/30 rounded-2xl p-4 flex items-start gap-3"
-              >
-                <div className="w-6 h-6 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-accent text-sm font-bold">✓</span>
-                </div>
-                <p className="text-base leading-relaxed">{rec}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+          </article>
+          <article data-testid="recommendations-card" className="rounded-3xl border border-white/10 bg-card/80 p-4">
+            <h3 className="font-semibold mb-2">Recommendations</h3>
+            <div className="space-y-2">
+              {insights.recommendations?.slice(0, 4).map((rec, index) => (
+                <p key={index} className="text-sm rounded-xl border border-white/10 bg-background/40 p-3">
+                  {rec}
+                </p>
+              ))}
+            </div>
+          </article>
+        </section>
       </div>
-    </DashboardLayout>
   );
 };
 

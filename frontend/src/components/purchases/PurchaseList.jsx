@@ -7,7 +7,7 @@ import PurchaseCard from '@/components/purchases/PurchaseCard';
 const PurchaseList = ({ purchases, loading, onRaiseFirstPurchase, onEdit }) => {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-3">
         {[1, 2, 3, 4].map((n) => (
           <div key={n} className="rounded-3xl border border-white/10 p-5">
             <Skeleton className="h-5 w-32 mb-3" />
@@ -34,7 +34,7 @@ const PurchaseList = ({ purchases, loading, onRaiseFirstPurchase, onEdit }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-3">
       {purchases.map((purchase) => (
         <PurchaseCard key={purchase.id} purchase={purchase} onEdit={onEdit} />
       ))}

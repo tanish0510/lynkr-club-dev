@@ -1,8 +1,46 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import useIsMobile from "@/hooks/useIsMobile";
 
 const RedeemModal = ({ open, coupon, redeeming, onCancel, onConfirm }) => {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={(next) => (!next ? onCancel() : null)}>
+        <DrawerContent className="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] rounded-t-2xl">
+          <DrawerHeader className="text-left px-0">
+            <DrawerTitle className="text-lg">Confirm redemption</DrawerTitle>
+            <DrawerDescription className="text-sm">
+              {coupon ? (
+                <>
+                  Redeem <strong>{coupon.title}</strong> for <strong>{coupon.points_cost} points</strong>?
+                </>
+              ) : null}
+            </DrawerDescription>
+          </DrawerHeader>
+          <DrawerFooter className="px-0 gap-2 pb-0">
+            <Button variant="outline" className="min-h-[44px] rounded-xl" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button className="min-h-[44px] rounded-xl" disabled={redeeming === coupon?.id} onClick={onConfirm}>
+              {redeeming === coupon?.id ? "Redeeming..." : "Confirm"}
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
   return (
     <AnimatePresence>
       {open && coupon ? (
@@ -24,11 +62,11 @@ const RedeemModal = ({ open, coupon, redeeming, onCancel, onConfirm }) => {
               Redeem <strong>{coupon.title}</strong> for <strong>{coupon.points_cost} points</strong>?
             </p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={onCancel}>
+              <Button variant="outline" className="flex-1 min-h-11" onClick={onCancel}>
                 Cancel
               </Button>
               <Button
-                className="flex-1"
+                className="flex-1 min-h-11"
                 disabled={redeeming === coupon.id}
                 onClick={onConfirm}
               >

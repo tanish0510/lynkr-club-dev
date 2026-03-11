@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import useIsMobile from "@/hooks/useIsMobile";
 
 const NEXT_REWARD_TARGET = 750;
 
 const PointsCard = ({ points }) => {
+  const isMobile = useIsMobile();
   const [displayPoints, setDisplayPoints] = useState(points);
   const [shimmer, setShimmer] = useState(true);
 
@@ -39,15 +41,19 @@ const PointsCard = ({ points }) => {
   return (
     <motion.div
       data-testid="available-points-display"
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28 }}
-      whileHover={{ y: -2, scale: 1.01 }}
-      className="relative inline-block min-w-[280px] rounded-3xl px-12 py-7 border border-white/10 shadow-2xl bg-card overflow-hidden"
+      transition={{ duration: 0.22 }}
+      whileHover={isMobile ? undefined : { y: -2, scale: 1.01 }}
+      className={`relative rounded-2xl md:rounded-3xl border border-white/10 shadow-xl bg-card overflow-hidden ${
+        isMobile
+          ? "w-full px-4 py-4 md:px-8 md:py-6"
+          : "inline-block min-w-[280px] px-8 py-6 md:px-12 md:py-7"
+      }`}
     >
-      <div className="pointer-events-none absolute -inset-8 opacity-25 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.22),transparent_60%)]" />
-      <p className="text-base text-muted-foreground uppercase tracking-wider mb-2 relative">Your Points</p>
-      <motion.p className="text-5xl md:text-6xl font-bold font-heading text-primary leading-none relative overflow-hidden">
+      <div className="pointer-events-none absolute -inset-6 md:-inset-8 opacity-20 md:opacity-25 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.22),transparent_60%)]" />
+      <p className="text-xs md:text-base text-muted-foreground uppercase tracking-wider mb-1 md:mb-2 relative">Your Points</p>
+      <motion.p className="text-3xl md:text-5xl lg:text-6xl font-bold font-heading text-primary leading-none relative overflow-hidden">
         {displayPoints}
         {shimmer ? (
           <motion.span
@@ -59,17 +65,17 @@ const PointsCard = ({ points }) => {
         ) : null}
       </motion.p>
 
-      <div className="mt-4 relative">
-        <div className="h-1.5 rounded-full bg-secondary/70 overflow-hidden">
+      <div className="mt-3 md:mt-4 relative">
+        <div className="h-2 md:h-1.5 rounded-full bg-secondary/70 overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.35 }}
-            className="h-full bg-primary/80"
+            className="h-full bg-primary/80 rounded-full"
           />
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          {toNext > 0 ? `Next reward at ${NEXT_REWARD_TARGET} points • ${toNext} to go` : "You reached the next reward milestone"}
+        <p className="text-[11px] md:text-xs text-muted-foreground mt-1.5 md:mt-2">
+          {toNext > 0 ? `Next at ${NEXT_REWARD_TARGET} pts • ${toNext} to go` : "Milestone reached"}
         </p>
       </div>
     </motion.div>

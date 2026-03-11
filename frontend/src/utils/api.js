@@ -15,9 +15,11 @@ const api = axios.create({
   timeout: 15000,
 });
 
+import { getStoredToken } from '@/utils/sessionStorage';
+
 // Add token to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
