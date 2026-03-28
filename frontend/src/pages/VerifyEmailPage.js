@@ -82,7 +82,7 @@ const VerifyEmailPage = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
-      <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 max-w-md w-full text-center">
+      <div className="bg-card text-card-foreground rounded-3xl border border-border shadow-2xl p-8 max-w-md w-full text-center">
         {status === 'verifying' && (
           <>
             <Loader2 className="w-16 h-16 text-primary mx-auto mb-6 animate-spin" />
@@ -106,10 +106,10 @@ const VerifyEmailPage = () => {
             <h1 className="text-2xl font-bold font-heading mb-2">Verification Failed</h1>
             <p className="text-muted-foreground mb-6">{message}</p>
             <Button
-              onClick={() => navigate('/app/dashboard')}
+              onClick={() => navigate('/app/home')}
               className="min-h-11 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 py-3"
             >
-              Go to Dashboard
+              Go to Home
             </Button>
           </>
         )}
@@ -143,7 +143,7 @@ const VerifyEmailPage = () => {
                   <InputOTP maxLength={6} value={otp} onChange={setOtp}>
                     <InputOTPGroup className="gap-2">
                       {[0, 1, 2, 3, 4, 5].map((i) => (
-                        <InputOTPSlot key={i} index={i} className="rounded-lg border-white/20 h-12 w-12 text-lg" />
+                        <InputOTPSlot key={i} index={i} className="rounded-lg border-border h-12 w-12 text-lg" />
                       ))}
                     </InputOTPGroup>
                   </InputOTP>
@@ -181,7 +181,7 @@ const VerifyEmailPage = () => {
             <Button
               variant="outline"
               className="mt-4 min-h-11 rounded-full w-full"
-              onClick={() => navigate('/app/dashboard')}
+              onClick={() => navigate('/app/home')}
             >
               Skip for now
             </Button>

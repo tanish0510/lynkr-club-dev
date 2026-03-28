@@ -45,7 +45,7 @@ const AdminPartnerResources = () => {
         <p className="text-muted-foreground mt-1">Share these materials with potential or existing partners.</p>
       </div>
 
-      <div className="bg-card rounded-2xl border border-white/5 p-6 shadow-sm">
+      <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
         <h2 className="text-lg font-semibold font-heading text-foreground mb-2">Partner pitch brochure</h2>
         <p className="text-sm text-muted-foreground mb-4">
           A professional PDF brochure that explains Lynkr, partner benefits, the Growth Dashboard, and how to join. Share it with businesses you’re onboarding.
@@ -74,7 +74,7 @@ const AdminPartnerResources = () => {
         </div>
       </div>
 
-      <div className="bg-card rounded-2xl border border-white/5 p-6 shadow-sm mt-4">
+      <div className="bg-card rounded-2xl border border-border p-6 shadow-sm mt-4">
         <h2 className="text-lg font-semibold font-heading text-foreground mb-2">Partner Demo Mode</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Scroll-driven interactive product story for live meetings. Ideal for demos and onboarding presentations.
@@ -88,7 +88,7 @@ const AdminPartnerResources = () => {
         </Button>
       </div>
 
-      <div className="bg-card rounded-2xl border border-white/5 p-6 shadow-sm mt-4">
+      <div className="bg-card rounded-2xl border border-border p-6 shadow-sm mt-4">
         <h2 className="text-lg font-semibold font-heading text-foreground mb-2">Ultimate Partner Demo Experience</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Premium end-to-end interactive story combining ecosystem walkthrough, growth metrics, charts, simulation controls, and CTA in one page.
@@ -102,7 +102,7 @@ const AdminPartnerResources = () => {
         </Button>
       </div>
 
-      <div className="bg-card rounded-2xl border border-white/5 p-6 shadow-sm mt-4">
+      <div className="bg-card rounded-2xl border border-border p-6 shadow-sm mt-4">
         <h2 className="text-lg font-semibold font-heading text-foreground mb-2">Live Partner Dashboard Simulation</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Show a merchant what their business would look like inside Lynkr with interactive metrics, charts, rewards, campaigns, and network insights.

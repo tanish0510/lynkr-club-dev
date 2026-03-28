@@ -1,20 +1,14 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { ShoppingBag } from 'lucide-react';
 import PurchaseCard from '@/components/purchases/PurchaseCard';
 
-const PurchaseList = ({ purchases, loading, onRaiseFirstPurchase, onEdit }) => {
+const PurchaseList = ({ purchases, loading, onRaiseFirstPurchase, onEdit, partnerMap = {} }) => {
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {[1, 2, 3, 4].map((n) => (
-          <div key={n} className="rounded-3xl border border-white/10 p-5">
-            <Skeleton className="h-5 w-32 mb-3" />
-            <Skeleton className="h-4 w-44 mb-2" />
-            <Skeleton className="h-4 w-56 mb-2" />
-            <Skeleton className="h-8 w-24 mt-4" />
-          </div>
+          <div key={n} className="h-[110px] rounded-2xl border border-border bg-muted/30 animate-pulse" />
         ))}
       </div>
     );
@@ -22,11 +16,11 @@ const PurchaseList = ({ purchases, loading, onRaiseFirstPurchase, onEdit }) => {
 
   if (!purchases.length) {
     return (
-      <div className="rounded-3xl border border-dashed border-white/10 bg-card/50 p-12 text-center">
-        <ShoppingBag className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-        <p className="text-xl font-semibold mb-1">No purchases yet</p>
-        <p className="text-sm text-muted-foreground mb-5">Start by raising your first purchase request.</p>
-        <Button className="rounded-full" onClick={onRaiseFirstPurchase}>
+      <div className="rounded-2xl border border-border bg-card px-6 py-14 text-center shadow-card">
+        <ShoppingBag className="mx-auto mb-3 h-10 w-10 text-txt-muted" />
+        <p className="text-sm text-txt-secondary font-semibold">No purchases yet</p>
+        <p className="text-xs text-txt-muted font-medium mt-1 mb-5">Start by raising your first purchase request.</p>
+        <Button className="rounded-full min-h-10 text-sm font-bold" onClick={onRaiseFirstPurchase}>
           Raise Your First Purchase
         </Button>
       </div>
@@ -34,10 +28,23 @@ const PurchaseList = ({ purchases, loading, onRaiseFirstPurchase, onEdit }) => {
   }
 
   return (
-    <div className="space-y-3">
-      {purchases.map((purchase) => (
-        <PurchaseCard key={purchase.id} purchase={purchase} onEdit={onEdit} />
-      ))}
+    <div className="space-y-2.5">
+      {purchases.map((purchase) => {
+        const partner =
+          partnerMap[purchase.partnerId] ||
+          Object.values(partnerMap).find(
+            (p) => p.business_name?.toLowerCase() === purchase.partnerName?.toLowerCase()
+          ) ||
+          null;
+        return (
+          <PurchaseCard
+            key={purchase.id}
+            purchase={purchase}
+            partner={partner}
+            onEdit={onEdit}
+          />
+        );
+      })}
     </div>
   );
 };

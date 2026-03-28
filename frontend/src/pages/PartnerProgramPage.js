@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const PartnerProgramPage = () => {
   const navigate = useNavigate();
-  const { setTokenFromStorage } = useAuth();
+  const { setTokenAndUser } = useAuth();
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -25,17 +25,20 @@ const PartnerProgramPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await api.post('/partner/auth/login', loginForm);
-      const { token, user } = response.data;
+      const response = await api.post('/partner/auth/login', {
+        email: loginForm.email.trim(),
+        password: loginForm.password.trim(),
+      });
+      const { token, user: partnerUser } = response.data;
 
-      setTokenFromStorage(token);
+      setTokenAndUser(token, partnerUser);
       toast.success('Welcome back!');
 
       // Check if password change required
-      if (user.must_change_password) {
-        navigate('/partner-first-login');
+      if (partnerUser.must_change_password) {
+        navigate('/app/partner/first-login');
       } else {
-        navigate('/partner-dashboard');
+        navigate('/app/partner');
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
@@ -47,7 +50,7 @@ const PartnerProgramPage = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-white/5">
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
           <div className="text-2xl font-heading font-bold tracking-tight">Lynkr Partner Program</div>
           <div className="flex items-center gap-3">
@@ -55,7 +58,7 @@ const PartnerProgramPage = () => {
               data-testid="toggle-login-button"
               variant="ghost"
               onClick={() => setShowLoginForm(!showLoginForm)}
-              className="hover:bg-white/5 rounded-full"
+              className="hover:bg-muted rounded-full"
             >
               <Mail className="mr-2 w-4 h-4" />
               {showLoginForm ? 'Use Google' : 'Email Login'}
@@ -73,8 +76,8 @@ const PartnerProgramPage = () => {
 
       {/* Login Form Modal */}
       {showLoginForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
-          <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 max-w-md w-full">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-overlay/50 backdrop-blur-sm p-6">
+          <div className="bg-card text-card-foreground rounded-3xl border border-border shadow-2xl p-8 max-w-md w-full">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold font-heading">Partner Login</h2>
               <button
@@ -95,7 +98,7 @@ const PartnerProgramPage = () => {
                   value={loginForm.email}
                   onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                   required
-                  className="bg-secondary/50 border-white/10 rounded-xl h-12"
+                  className="bg-secondary/50 border-border rounded-xl h-12"
                 />
               </div>
               
@@ -108,7 +111,7 @@ const PartnerProgramPage = () => {
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                   required
-                  className="bg-secondary/50 border-white/10 rounded-xl h-12"
+                  className="bg-secondary/50 border-border rounded-xl h-12"
                 />
               </div>
               
@@ -128,7 +131,7 @@ const PartnerProgramPage = () => {
               </Button>
             </form>
             
-            <div className="mt-6 pt-6 border-t border-white/10 text-center">
+            <div className="mt-6 pt-6 border-t border-border text-center">
               <p className="text-sm text-muted-foreground mb-4">Or continue with</p>
               <Button
                 onClick={() => {
@@ -136,7 +139,7 @@ const PartnerProgramPage = () => {
                   handlePartnerLogin();
                 }}
                 variant="outline"
-                className="w-full rounded-full border-white/10"
+                className="w-full rounded-full border-border"
               >
                 Login with Google
               </Button>
@@ -149,7 +152,7 @@ const PartnerProgramPage = () => {
       <section className="pt-32 pb-20 px-6 md:px-12">
         <div className="max-w-7xl mx-auto text-center">
           <div className="inline-block mb-6">
-            <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground bg-secondary/50 px-4 py-2 rounded-full border border-white/10">
+            <span className="text-sm font-medium tracking-wide uppercase text-muted-foreground bg-secondary/50 px-4 py-2 rounded-full border border-border">
               For Businesses
             </span>
           </div>
@@ -175,7 +178,7 @@ const PartnerProgramPage = () => {
             </Button>
             <Button
               variant="outline"
-              className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-full px-6 py-6 text-base font-medium border border-white/10 hover:border-white/20"
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-full px-6 py-6 text-base font-medium border border-border hover:border-border"
               onClick={() => window.location.href = 'mailto:partners@lynkr.club?subject=Partner Program Inquiry'}
             >
               Contact Us
@@ -190,7 +193,7 @@ const PartnerProgramPage = () => {
           <h2 className="text-4xl font-bold font-heading text-center mb-16">Why Partner with Lynkr?</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div data-testid="benefit-verified" className="bg-card rounded-3xl border border-white/5 shadow-2xl p-8">
+            <div data-testid="benefit-verified" className="bg-card rounded-3xl border border-border shadow-2xl p-8">
               <Shield className="w-12 h-12 text-primary mb-6" />
               <h3 className="text-2xl font-bold mb-4">Verified Customers Only</h3>
               <p className="text-muted-foreground leading-relaxed">
@@ -198,7 +201,7 @@ const PartnerProgramPage = () => {
               </p>
             </div>
             
-            <div data-testid="benefit-dashboard" className="bg-card rounded-3xl border border-white/5 shadow-2xl p-8">
+            <div data-testid="benefit-dashboard" className="bg-card rounded-3xl border border-border shadow-2xl p-8">
               <TrendingUp className="w-12 h-12 text-primary mb-6" />
               <h3 className="text-2xl font-bold mb-4">Real-Time Order Dashboard</h3>
               <p className="text-muted-foreground leading-relaxed">
@@ -206,7 +209,7 @@ const PartnerProgramPage = () => {
               </p>
             </div>
             
-            <div data-testid="benefit-tracking" className="bg-card rounded-3xl border border-white/5 shadow-2xl p-8">
+            <div data-testid="benefit-tracking" className="bg-card rounded-3xl border border-border shadow-2xl p-8">
               <Users className="w-12 h-12 text-primary mb-6" />
               <h3 className="text-2xl font-bold mb-4">No Tracking Required</h3>
               <p className="text-muted-foreground leading-relaxed">
@@ -214,7 +217,7 @@ const PartnerProgramPage = () => {
               </p>
             </div>
             
-            <div data-testid="benefit-performance" className="bg-card rounded-3xl border border-white/5 shadow-2xl p-8">
+            <div data-testid="benefit-performance" className="bg-card rounded-3xl border border-border shadow-2xl p-8">
               <Award className="w-12 h-12 text-primary mb-6" />
               <h3 className="text-2xl font-bold mb-4">Simple Order Verification</h3>
               <p className="text-muted-foreground leading-relaxed">
@@ -300,7 +303,7 @@ const PartnerProgramPage = () => {
             </Button>
             <Button
               variant="outline"
-              className="bg-secondary hover:bg-secondary/80 border border-white/10 rounded-full px-8 py-6 text-lg"
+              className="bg-secondary hover:bg-secondary/80 border border-border rounded-full px-8 py-6 text-lg"
               onClick={() => window.location.href = 'mailto:partners@lynkr.club?subject=Become a Partner'}
             >
               Apply to Join
@@ -310,7 +313,7 @@ const PartnerProgramPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 md:px-12 border-t border-white/5">
+      <footer className="py-12 px-6 md:px-12 border-t border-border">
         <div className="max-w-7xl mx-auto text-center text-muted-foreground">
           <p className="text-sm">&copy; 2025 Lynkr.club. All rights reserved.</p>
           <p className="text-xs mt-2">For partner inquiries: partners@lynkr.club</p>

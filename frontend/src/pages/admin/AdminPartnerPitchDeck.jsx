@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,9 +31,9 @@ const containerVariants = {
   exit: (direction) => ({ opacity: 0, x: direction > 0 ? -70 : 70, transition: { duration: 0.25 } }),
 };
 
-const slideTitle = 'text-3xl md:text-5xl font-heading font-bold text-center tracking-tight text-[#FAFAFA]';
-const slideSub = 'text-[#A3A3A3] text-center mt-3 max-w-3xl mx-auto';
-const cardClass = 'rounded-2xl border border-white/10 bg-[#171717]/65 backdrop-blur-md shadow-[0_14px_40px_rgba(13,25,52,0.45)]';
+const slideTitle = 'text-3xl md:text-5xl font-heading font-bold text-center tracking-tight text-foreground';
+const slideSub = 'text-txt-secondary text-center mt-3 max-w-3xl mx-auto';
+const cardClass = 'rounded-2xl border border-border bg-card backdrop-blur-md shadow-[0_14px_40px_rgba(13,25,52,0.45)]';
 
 const AccentWord = ({ children, color = 'from-[#3B82F6] to-[#14B8A6]' }) => (
   <span className={`bg-gradient-to-r ${color} bg-clip-text text-transparent`}>{children}</span>
@@ -54,7 +55,7 @@ const AnimatedCounter = ({ to, suffix = '', duration = 1100 }) => {
 
 const SlideFrame = ({ children, isMobile = false }) => (
   <div className="w-full max-w-[1500px] mx-auto">
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(125deg,#050506,#08142C_45%,#120B25_100%)] p-4 md:p-10 min-h-[68vh] md:min-h-[74vh]">
+    <div className="relative overflow-hidden rounded-3xl border border-border bg-[linear-gradient(125deg,hsl(var(--surface-page)),#08142C_45%,#120B25_100%)] p-4 md:p-10 min-h-[68vh] md:min-h-[74vh]">
       <motion.div
         className="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-[#14B8A6]/15 blur-3xl pointer-events-none"
         animate={isMobile ? { x: [0, 16, 0], y: [0, 10, 0] } : { x: [0, 40, 0], y: [0, 20, 0] }}
@@ -94,7 +95,7 @@ const SlideOne = ({ isMobile }) => (
             ].map((node) => (
               <motion.div key={node.title} className={`absolute ${node.pos} ${cardClass} px-4 py-3 min-w-[145px] text-center`} whileHover={{ y: -4, scale: 1.03 }}>
                 <node.icon className="w-5 h-5 text-[#3B82F6] mx-auto mb-1" />
-                <p className="text-sm font-semibold text-[#FAFAFA]">{node.title}</p>
+                <p className="text-sm font-semibold text-foreground">{node.title}</p>
               </motion.div>
             ))}
           </div>
@@ -118,8 +119,8 @@ const SlideOne = ({ isMobile }) => (
             <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/20 flex items-center justify-center mb-2">
               <item.icon className="w-5 h-5 text-[#3B82F6]" />
             </div>
-            <h3 className="font-heading text-lg font-semibold text-[#FAFAFA]">{item.title}</h3>
-            <p className="text-sm text-[#A3A3A3] mt-1">{item.text}</p>
+            <h3 className="font-heading text-lg font-semibold text-foreground">{item.title}</h3>
+            <p className="text-sm text-txt-secondary mt-1">{item.text}</p>
           </motion.div>
         ))}
       </div>
@@ -143,8 +144,8 @@ const SlideTwo = ({ isMobile }) => (
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: `${s.accent}33` }}>
               <s.icon className="w-6 h-6" style={{ color: s.accent }} />
             </div>
-            <p className="font-heading text-lg font-semibold text-[#FAFAFA]">{s.title}</p>
-            <p className="text-sm text-[#A3A3A3] mt-2">{s.text}</p>
+            <p className="font-heading text-lg font-semibold text-foreground">{s.title}</p>
+            <p className="text-sm text-txt-secondary mt-2">{s.text}</p>
           </motion.div>
           {i < 2 && (
             <motion.div className="hidden md:flex items-center justify-center" animate={{ x: [0, 10, 0], opacity: [0.6, 1, 0.6] }} transition={{ duration: 1.6, repeat: Infinity }}>
@@ -156,8 +157,8 @@ const SlideTwo = ({ isMobile }) => (
     </div>
 
     <motion.div className={`${cardClass} p-5 mt-6 border-l-4 border-l-[#14B8A6]`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}>
-      <p className="font-semibold text-[#FAFAFA]">The Network Effect</p>
-      <p className="text-sm text-[#A3A3A3] mt-1">Rewards earned at one partner can be used at another in the network.</p>
+      <p className="font-semibold text-foreground">The Network Effect</p>
+      <p className="text-sm text-txt-secondary mt-1">Rewards earned at one partner can be used at another in the network.</p>
       <div className="mt-4 flex items-center gap-2">
         {[0, 1, 2, 3].map((n) => (
           <React.Fragment key={n}>
@@ -187,9 +188,9 @@ const SlideThree = ({ isMobile }) => (
         <motion.div key={item.title} className={`${cardClass} p-5`} whileHover={{ y: -5, borderColor: 'rgba(59,130,246,0.6)' }} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.08 }}>
           <div className="flex items-center gap-3 mb-2">
             <item.icon className="w-5 h-5 text-[#3B82F6]" />
-            <h3 className="font-heading font-semibold text-lg text-[#FAFAFA]">{item.title}</h3>
+            <h3 className="font-heading font-semibold text-lg text-foreground">{item.title}</h3>
           </div>
-          <p className="text-sm text-[#A3A3A3]">{item.text}</p>
+          <p className="text-sm text-txt-secondary">{item.text}</p>
         </motion.div>
       ))}
     </div>
@@ -217,8 +218,8 @@ const SlideFour = ({ isMobile }) => (
               {item.raw || <AnimatedCounter to={item.value} suffix={item.suffix} />}
             </span>
           </div>
-          <p className="font-heading font-semibold text-[#FAFAFA]">{item.label}</p>
-          <p className="text-sm text-[#A3A3A3] mt-2">{item.tip}</p>
+          <p className="font-heading font-semibold text-foreground">{item.label}</p>
+          <p className="text-sm text-txt-secondary mt-2">{item.tip}</p>
           <p className="text-xs text-[#14B8A6] mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Hover insight: {item.tip}</p>
         </motion.div>
       ))}
@@ -226,7 +227,7 @@ const SlideFour = ({ isMobile }) => (
   </SlideFrame>
 );
 
-const SlideFive = ({ isMobile }) => {
+const SlideFive = ({ isMobile, onGetStarted }) => {
   const features = useMemo(
     () => [
       { id: 'rewards', title: 'Reward Management', detail: 'Create reward tiers, point values, and redemption rules.' },
@@ -253,21 +254,24 @@ const SlideFive = ({ isMobile }) => {
             onClick={() => setActive(f)}
             className={`${cardClass} p-5 text-left transition-all ${active.id === f.id ? 'border-[#8B5CF6]/70 bg-[#8B5CF6]/10' : 'hover:border-[#3B82F6]/40 hover:scale-[1.02]'}`}
           >
-            <p className="font-heading font-semibold text-[#FAFAFA]">{f.title}</p>
+            <p className="font-heading font-semibold text-foreground">{f.title}</p>
           </button>
         ))}
       </div>
       <motion.div key={active.id} className={`${cardClass} p-6 mt-6`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
         <p className="text-xs tracking-wider text-[#8B5CF6] uppercase font-semibold">Selected Feature</p>
-        <h3 className="text-xl font-heading font-bold mt-1 text-[#FAFAFA]">{active.title}</h3>
-        <p className="text-[#A3A3A3] mt-2">{active.detail}</p>
+        <h3 className="text-xl font-heading font-bold mt-1 text-foreground">{active.title}</h3>
+        <p className="text-txt-secondary mt-2">{active.detail}</p>
       </motion.div>
 
       <motion.div className={`${cardClass} mt-6 p-6 border border-[#14B8A6]/40`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-        <h4 className="text-2xl font-heading font-bold text-center text-[#FAFAFA]">Become a Lynkr Partner</h4>
-        <p className="text-center text-[#A3A3A3] mt-2">Join the Lynkr ecosystem and turn everyday transactions into long-term customer loyalty.</p>
+        <h4 className="text-2xl font-heading font-bold text-center text-foreground">Become a Lynkr Partner</h4>
+        <p className="text-center text-txt-secondary mt-2">Join the Lynkr ecosystem and turn everyday transactions into long-term customer loyalty.</p>
         <div className="flex justify-center mt-4">
-          <Button className="rounded-xl bg-[#3B82F6] hover:bg-[#2c6fe0] text-white min-h-11 shadow-[0_0_24px_rgba(59,130,246,0.35)]">
+          <Button
+            className="rounded-xl bg-[#3B82F6] hover:bg-[#2c6fe0] text-white min-h-11 shadow-[0_0_24px_rgba(59,130,246,0.35)]"
+            onClick={() => onGetStarted?.()}
+          >
             Get Started Today
             <motion.span animate={{ x: [0, 6, 0] }} transition={{ duration: 1.1, repeat: Infinity }}>
               <ArrowRight className="w-4 h-4 ml-2" />
@@ -288,6 +292,7 @@ const slides = [
 ];
 
 const AdminPartnerPitchDeck = () => {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -327,12 +332,12 @@ const AdminPartnerPitchDeck = () => {
   const SlideComponent = slides[index].component;
 
   return (
-    <div ref={rootRef} className="relative min-h-screen bg-[#050506] px-3 md:px-6 py-4 md:py-6 overflow-hidden">
+    <div ref={rootRef} className="relative min-h-screen bg-surface-page px-3 md:px-6 py-4 md:py-6 overflow-hidden">
       {/* moving particles */}
       {[...Array(isMobile ? 6 : 14)].map((_, i) => (
         <motion.span
           key={i}
-          className="absolute rounded-full bg-white/20 pointer-events-none"
+          className="absolute rounded-full bg-muted pointer-events-none"
           style={{ width: 3 + (i % 3), height: 3 + (i % 3), left: `${(i * 7.1) % 100}%`, top: `${(i * 11.7) % 100}%` }}
           animate={{ y: [0, -18, 0], opacity: [0.2, 0.8, 0.2] }}
           transition={{ duration: (isMobile ? 4 : 3) + (i % 5), repeat: Infinity }}
@@ -341,16 +346,16 @@ const AdminPartnerPitchDeck = () => {
 
       <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold text-[#FAFAFA]">Lynkr Partner Pitch Deck</h1>
-          <p className="text-sm text-[#A3A3A3] mt-1">Live interactive presentation for partner meetings.</p>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold text-foreground">Lynkr Partner Pitch Deck</h1>
+          <p className="text-sm text-txt-secondary mt-1">Live interactive presentation for partner meetings.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge className="bg-white/10 text-white border-white/15">{index + 1} / {slides.length}</Badge>
-          <Button variant="outline" onClick={toggleFullscreen} className="rounded-xl border-white/20 text-white hover:bg-white/10 min-h-11">
+          <Badge className="bg-muted text-foreground border-border">{index + 1} / {slides.length}</Badge>
+          <Button variant="outline" onClick={toggleFullscreen} className="rounded-xl border-border text-foreground hover:bg-muted min-h-11">
             {fullscreen ? <Minimize2 className="w-4 h-4 mr-1" /> : <Maximize2 className="w-4 h-4 mr-1" />}
             {fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           </Button>
-          <Button variant="outline" onClick={prev} disabled={index === 0} className="rounded-xl min-h-11">
+          <Button variant="outline" onClick={prev} disabled={index === 0} className="rounded-xl min-h-11 border-border text-foreground hover:bg-muted hover:text-foreground disabled:opacity-50">
             <ArrowLeft className="w-4 h-4 mr-1" /> Prev
           </Button>
           <Button onClick={next} disabled={index === slides.length - 1} className="rounded-xl min-h-11">
@@ -365,7 +370,7 @@ const AdminPartnerPitchDeck = () => {
             key={s.title}
             type="button"
             onClick={() => goTo(i)}
-            className={`h-2.5 rounded-full transition-all ${i === index ? 'w-8 bg-[#3B82F6]' : 'w-2.5 bg-white/25'}`}
+            className={`h-2.5 rounded-full transition-all ${i === index ? 'w-8 bg-[#3B82F6]' : 'w-2.5 bg-muted'}`}
             aria-label={`Go to ${s.title}`}
           />
         ))}
@@ -381,18 +386,19 @@ const AdminPartnerPitchDeck = () => {
             animate="visible"
             exit="exit"
             drag={isMobile ? 'x' : false}
-            dragConstraints={{ left: 0, right: 0 }}
+            dragConstraints={{ left: -120, right: 120 }}
+            dragElastic={0.2}
             onDragEnd={(_, info) => {
               if (!isMobile) return;
               if (info.offset.x < -60) next();
               if (info.offset.x > 60) prev();
             }}
           >
-            <SlideComponent isMobile={isMobile} />
+            <SlideComponent isMobile={isMobile} onGetStarted={index === 4 ? () => navigate('/partners') : undefined} />
           </motion.div>
         </AnimatePresence>
         {isMobile ? (
-          <p className="text-center text-xs text-[#A3A3A3] mt-3">Swipe left or right to change slides</p>
+          <p className="text-center text-xs text-txt-secondary mt-3">Swipe left or right to change slides</p>
         ) : null}
       </div>
     </div>

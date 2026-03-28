@@ -1,19 +1,18 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
-
-# Public marketing and partner pages
-Allow: /
-Allow: /partner
 Allow: /partners
-Allow: /partner/login
-Allow: /login
-Allow: /signup
 Allow: /terms
 Allow: /partner-pitch
 Allow: /partner-demo
 Allow: /partner-demo-dashboard
 Allow: /partner-demo-experience
+
+# App: allow login/signup for discovery; disallow dashboard and admin from indexing
+Disallow: /app/
+Allow: /app/login
+Allow: /app/signup
+Allow: /app/partner/login
 
 # Sitemaps
 Sitemap: https://lynkr.club/sitemap.xml

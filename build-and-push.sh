@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Build and push backend + frontend images to Docker Hub.
 # Usage:
-#   ./build-and-push.sh <docker-hub-username> [backend_url]
-# Example:
-#   ./build-and-push.sh tanish0510 https://lynkr.club
+#   ./build-and-push.sh <docker-hub-username> [backend_url] [--no-cache]
+# If push fails with EOF / "failed commit on ref": retry on a stable network; try without VPN.
 
 set -euo pipefail
 
@@ -53,8 +52,12 @@ echo "Logging in to Docker Hub..."
 docker login
 echo
 
+# Disable provenance/sbom to keep push smaller and avoid EOF on flaky networks
+BUILDX_PUSH_OPTS=(--provenance=false --sbom=false)
+
 echo "Building and pushing backend..."
 docker buildx build \
+  "${BUILDX_PUSH_OPTS[@]}" \
   --platform "$PLATFORM" \
   -t "$BACKEND_TAG" \
   -f backend/Dockerfile backend \
@@ -63,6 +66,7 @@ echo
 
 echo "Building and pushing frontend..."
 docker buildx build \
+  "${BUILDX_PUSH_OPTS[@]}" \
   --platform "$PLATFORM" \
   -t "$FRONTEND_TAG" \
   --build-arg REACT_APP_BACKEND_URL="$BACKEND_URL" \

@@ -212,7 +212,7 @@ class MailboxPoller:
 class EmailIngestService:
     """Polls multiple Zoho Mail accounts for purchase-related emails.
 
-    Mailbox credentials are loaded from the ``zoho_mail_tokens`` MongoDB
+    Mailbox credentials are loaded from the ``zoho_mail_tokens`` collection (JSONB doc store)
     collection.  Each document stores the Zoho ``account_id``, the user's
     ``lynkr_email``, and the OAuth ``refresh_token`` needed to poll that
     mailbox.
@@ -232,7 +232,7 @@ class EmailIngestService:
         if self._db is None:
             return list(self._pollers.values())
 
-        docs = await self._db.zoho_mail_tokens.find({"enabled": {"$ne": False}}, {"_id": 0}).to_list(500)
+        docs = await self._db.zoho_mail_tokens.find_all()
         seen: set = set()
         for doc in docs:
             account_id = str(doc.get("zoho_account_id") or "").strip()

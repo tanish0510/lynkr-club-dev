@@ -18,9 +18,21 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        heading: ['Outfit', 'sans-serif'],
-        body: ['Manrope', 'sans-serif'],
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
+        heading: ['Outfit', 'system-ui', 'sans-serif'],
+        body: ['Manrope', 'system-ui', 'sans-serif'],
         accent: ['Playfair Display', 'serif'],
+      },
+      fontSize: {
+        'xs': ['12px', { lineHeight: '1.5', letterSpacing: '0' }],
+        'sm': ['14px', { lineHeight: '1.55', letterSpacing: '-0.006em' }],
+        'base': ['15px', { lineHeight: '1.6', letterSpacing: '-0.01em' }],
+        'lg': ['17px', { lineHeight: '1.5', letterSpacing: '-0.014em' }],
+        'xl': ['20px', { lineHeight: '1.4', letterSpacing: '-0.017em' }],
+        '2xl': ['24px', { lineHeight: '1.3', letterSpacing: '-0.019em' }],
+        '3xl': ['30px', { lineHeight: '1.2', letterSpacing: '-0.021em' }],
+        '4xl': ['36px', { lineHeight: '1.15', letterSpacing: '-0.022em' }],
+        '5xl': ['48px', { lineHeight: '1.1', letterSpacing: '-0.025em' }],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -56,6 +68,30 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        surface: {
+          page: "hsl(var(--surface-page))",
+          raised: "hsl(var(--surface-raised))",
+          overlay: "hsl(var(--surface-overlay))",
+          input: "hsl(var(--surface-input) / <alpha-value>)",
+          hover: "hsl(var(--surface-hover) / <alpha-value>)",
+          active: "hsl(var(--surface-active) / <alpha-value>)",
+        },
+        txt: {
+          primary: "hsl(var(--text-primary))",
+          secondary: "hsl(var(--text-secondary))",
+          muted: "hsl(var(--text-muted))",
+          placeholder: "hsl(var(--text-placeholder))",
+        },
+        brd: {
+          subtle: "hsl(var(--border-subtle) / <alpha-value>)",
+          DEFAULT: "hsl(var(--border-default) / <alpha-value>)",
+          strong: "hsl(var(--border-strong) / <alpha-value>)",
+        },
+        divider: "hsl(var(--divider) / <alpha-value>)",
+      },
+      boxShadow: {
+        'card': '0 1px 3px hsl(var(--shadow-card)), 0 1px 2px hsl(var(--shadow-card))',
+        'card-lg': '0 4px 12px hsl(var(--shadow-card)), 0 2px 4px hsl(var(--shadow-card))',
       },
       borderRadius: {
         lg: "var(--radius)",

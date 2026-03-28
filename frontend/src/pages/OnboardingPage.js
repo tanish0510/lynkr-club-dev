@@ -22,7 +22,7 @@ const OnboardingPage = () => {
   const completeOnboarding = async () => {
     try {
       await api.post('/user/complete-onboarding');
-      navigate('/app/dashboard');
+      navigate('/app/home');
     } catch (error) {
       toast.error('Failed to complete onboarding');
     }
@@ -44,7 +44,7 @@ const OnboardingPage = () => {
               </p>
             </div>
             
-            <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 md:p-12">
+            <div className="bg-card text-card-foreground rounded-3xl border border-border shadow-2xl p-8 md:p-12">
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
                   <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
@@ -106,8 +106,8 @@ const OnboardingPage = () => {
               </p>
             </div>
             
-            <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 md:p-12">
-              <div className="bg-secondary/50 border border-white/10 rounded-2xl p-8 mb-8">
+            <div className="bg-card text-card-foreground rounded-3xl border border-border shadow-2xl p-8 md:p-12">
+              <div className="bg-secondary/50 border border-border rounded-2xl p-8 mb-8">
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground uppercase tracking-wide mb-3">Your Lynkr Email</p>
                   <div data-testid="lynkr-email" className="text-3xl md:text-4xl font-bold font-heading mb-6 break-all">

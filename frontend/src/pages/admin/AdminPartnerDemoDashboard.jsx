@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Area,
@@ -30,7 +31,8 @@ import {
 } from 'lucide-react';
 import useIsMobile from '@/hooks/useIsMobile';
 
-const cardClass = 'rounded-2xl border border-white/10 bg-[#171717]/70 backdrop-blur shadow-[0_14px_40px_rgba(10,18,40,0.45)]';
+const cardClass = 'rounded-2xl border border-border bg-card backdrop-blur shadow-[0_14px_40px_rgba(10,18,40,0.45)]';
+const cardClassCompact = 'rounded-xl border border-border bg-card backdrop-blur shadow-lg shrink-0';
 
 const AnimatedValue = ({ value, prefix = '', suffix = '', isMobile = false }) => (
   <motion.span
@@ -38,7 +40,7 @@ const AnimatedValue = ({ value, prefix = '', suffix = '', isMobile = false }) =>
     initial={{ opacity: 0.2, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.35 }}
-    className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-heading font-bold text-[#FAFAFA]`}
+    className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-heading font-bold text-foreground`}
   >
     {prefix}
     {Number(value).toLocaleString()}
@@ -66,6 +68,7 @@ const initialInsights = [
 ];
 
 const AdminPartnerDemoDashboard = () => {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [metrics, setMetrics] = useState({
     totalTransactions: 2489,
@@ -124,7 +127,7 @@ const AdminPartnerDemoDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#050506] text-[#FAFAFA]">
+    <div className="min-h-screen bg-surface-page text-foreground pb-[env(safe-area-inset-bottom)]">
       <div className="fixed inset-0 pointer-events-none">
         <motion.div
           className="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-[#3B82F6]/20 blur-3xl"
@@ -138,18 +141,18 @@ const AdminPartnerDemoDashboard = () => {
         />
       </div>
 
-      <div className="relative z-10 border-b border-white/10 bg-black/20 backdrop-blur-xl">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg sm:text-xl md:text-2xl font-heading font-bold">Lynkr Partner Demo Dashboard</h1>
-            <p className="text-[#A3A3A3] text-xs sm:text-sm">Live simulation of partner experience inside Lynkr</p>
+      <header className="sticky top-0 z-20 border-b border-border bg-surface-page/95 backdrop-blur-xl">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-8 py-3 sm:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg md:text-2xl font-heading font-bold truncate">Lynkr Partner Demo</h1>
+            <p className="text-txt-secondary text-[11px] sm:text-xs md:text-sm truncate">Live simulation of partner experience</p>
           </div>
-          <div className="w-full lg:w-auto flex gap-2 flex-nowrap overflow-x-auto pb-1">
+          <div className="flex gap-2 flex-nowrap overflow-x-auto pb-1 -mx-1 px-1 hide-scrollbar snap-x snap-mandatory">
             <Dialog open={tourOpen} onOpenChange={setTourOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="rounded-xl border-white/20 text-white hover:bg-white/10 whitespace-nowrap min-h-11">
-                  <Info className="w-4 h-4 mr-2" />
-                  Dashboard Tour
+                <Button variant="outline" className="rounded-xl border-border text-foreground hover:bg-muted whitespace-nowrap min-h-10 sm:min-h-11 shrink-0 snap-start px-3">
+                  <Info className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Dashboard Tour</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
@@ -181,63 +184,104 @@ const AdminPartnerDemoDashboard = () => {
                 </div>
               </DialogContent>
             </Dialog>
-            <Button className="rounded-xl bg-[#3B82F6] hover:bg-[#2b71e8] whitespace-nowrap min-h-11" onClick={simulateCampaign}>
-              Simulate Campaign
+            <Button className="rounded-xl bg-[#3B82F6] hover:bg-[#2b71e8] whitespace-nowrap min-h-10 sm:min-h-11 shrink-0 snap-start px-3 text-sm" onClick={simulateCampaign}>
+              <Megaphone className="w-4 h-4 sm:mr-2" />
+              Campaign
             </Button>
-            <Button variant="outline" className="rounded-xl border-white/20 text-white hover:bg-white/10 whitespace-nowrap min-h-11" onClick={simulateRewardRedemption}>
-              Simulate Reward Redemption
+            <Button variant="outline" className="rounded-xl border-border text-foreground hover:bg-muted whitespace-nowrap min-h-10 sm:min-h-11 shrink-0 snap-start px-3 text-sm" onClick={simulateRewardRedemption}>
+              <Gift className="w-4 h-4 sm:mr-2" />
+              Rewards
             </Button>
-            <Button variant="outline" className="rounded-xl border-white/20 text-white hover:bg-white/10 whitespace-nowrap min-h-11" onClick={simulateCustomerVisit}>
-              Simulate Customer Visit
+            <Button variant="outline" className="rounded-xl border-border text-foreground hover:bg-muted whitespace-nowrap min-h-10 sm:min-h-11 shrink-0 snap-start px-3 text-sm" onClick={simulateCustomerVisit}>
+              <Users className="w-4 h-4 sm:mr-2" />
+              Customer
             </Button>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="relative z-10 max-w-[1400px] mx-auto px-4 md:px-8 py-6 grid grid-cols-1 lg:grid-cols-[220px,1fr] gap-6">
-        <aside className={`${cardClass} p-3 lg:p-4 h-fit lg:sticky lg:top-24`}>
-          <p className="text-xs tracking-wider text-[#A3A3A3] uppercase mb-3">Navigation</p>
-          <div className="flex lg:block gap-2 overflow-x-auto pb-1">
+      <div className="relative z-10 max-w-[1400px] mx-auto px-3 sm:px-4 md:px-8 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-[220px,1fr] gap-4 sm:gap-6">
+        <aside className={`${cardClass} p-2 sm:p-3 lg:p-4 h-fit lg:sticky lg:top-24 order-2 lg:order-1`}>
+          <p className="text-[10px] sm:text-xs tracking-wider text-txt-secondary uppercase mb-2 sm:mb-3 px-1">Navigation</p>
+          <div className="flex lg:flex-col gap-1 sm:gap-2 overflow-x-auto pb-1 lg:pb-0 hide-scrollbar snap-x snap-mandatory">
             {[
-              ['Overview', TrendingUp],
-              ['Rewards', Gift],
-              ['Transactions', ShoppingBag],
-              ['Customers', Users],
-              ['Campaigns', Megaphone],
-              ['Analytics', BarChart3],
-            ].map(([label, Icon]) => (
-              <button key={label} type="button" className="w-auto lg:w-full whitespace-nowrap text-left px-3 py-2 rounded-lg hover:bg-white/5 transition flex items-center gap-2 min-h-11">
-                <Icon className="w-4 h-4 text-[#3B82F6]" />
-                <span className="text-sm">{label}</span>
+              ['Overview', TrendingUp, '#3B82F6'],
+              ['Rewards', Gift, '#14B8A6'],
+              ['Transactions', ShoppingBag, '#8B5CF6'],
+              ['Customers', Users, '#A3A3A3'],
+              ['Campaigns', Megaphone, '#A3A3A3'],
+              ['Analytics', BarChart3, '#A3A3A3'],
+            ].map(([label, Icon, color]) => (
+              <button
+                key={label}
+                type="button"
+                className="w-auto lg:w-full whitespace-nowrap text-left px-2.5 sm:px-3 py-2 rounded-xl hover:bg-muted active:bg-muted/50 transition flex items-center gap-2 min-h-10 sm:min-h-11 shrink-0 snap-start touch-manipulation"
+              >
+                <Icon className="w-4 h-4 shrink-0" style={{ color }} />
+                <span className="text-xs sm:text-sm">{label}</span>
               </button>
             ))}
           </div>
         </aside>
 
-        <main className="space-y-6">
-          {/* Section 1 */}
-          <section id="overview" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <main className="space-y-4 sm:space-y-6 order-1 lg:order-2 min-w-0">
+          {/* Stats: horizontal scroll on mobile, grid on desktop */}
+          <section id="overview" className="flex sm:grid sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar snap-x snap-mandatory">
             {[
-              ['Total Transactions', metrics.totalTransactions, '', ShoppingBag],
-              ['Reward Points Issued', metrics.rewardPointsIssued, ' pts', Gift],
-              ['Active Customers', metrics.activeCustomers, '', Users],
-              ['Revenue from Lynkr Users', metrics.revenueFromLynkr, ' INR', CircleDollarSign],
-            ].map(([title, value, suffix, Icon]) => (
-              <motion.div key={title} whileHover={{ y: -4 }} className={`${cardClass} p-5`}>
-                <div className="w-10 h-10 rounded-xl bg-[#3B82F6]/20 flex items-center justify-center mb-2">
-                  <Icon className="w-5 h-5 text-[#3B82F6]" />
+              ['Total Transactions', metrics.totalTransactions, '', ShoppingBag, '#3B82F6'],
+              ['Reward Points Issued', metrics.rewardPointsIssued, ' pts', Gift, '#14B8A6'],
+              ['Active Customers', metrics.activeCustomers, '', Users, '#8B5CF6'],
+              ['Revenue from Lynkr', metrics.revenueFromLynkr, ' INR', CircleDollarSign, '#10B981'],
+            ].map(([title, value, suffix, Icon, accent]) => (
+              <motion.div
+                key={title}
+                whileHover={!isMobile ? { y: -4 } : {}}
+                className={`${isMobile ? cardClassCompact : cardClass} p-4 sm:p-5 min-w-[72vw] sm:min-w-0 w-full sm:w-auto snap-start shrink-0 sm:shrink`}
+              >
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center mb-2 shrink-0" style={{ backgroundColor: `${accent}20` }}>
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" style={{ color: accent }} />
                 </div>
-                <p className="text-sm text-[#A3A3A3]">{title}</p>
+                <p className="text-xs sm:text-sm text-txt-secondary truncate">{title}</p>
                 <AnimatedValue value={value} suffix={suffix} isMobile={isMobile} />
               </motion.div>
             ))}
           </section>
 
-          {/* Section 2 */}
+          {/* Quick actions: horizontal strip on mobile (optional duplicate — actions are in header) */}
+
+          {/* Activity feed: mobile-first vertical list */}
+          <section className={`${cardClass} p-4 sm:p-5`}>
+            <h2 className="text-base sm:text-lg font-heading font-bold flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-[#14B8A6]" />
+              Recent activity
+            </h2>
+            <p className="text-xs text-txt-secondary mb-3">Simulation events and updates</p>
+            <ul className="space-y-2">
+              {[
+                { label: 'Campaign launch', detail: 'Double Points Tuesday', time: 'Just now', icon: Megaphone, color: '#3B82F6' },
+                { label: 'Reward redeemed', detail: '10% off next purchase', time: '2m ago', icon: Gift, color: '#14B8A6' },
+                { label: 'New transaction', detail: 'user@lynkr.club • ₹2,499', time: '5m ago', icon: ShoppingBag, color: '#8B5CF6' },
+                { label: 'Points issued', detail: '128,400 pts total', time: '1h ago', icon: Sparkles, color: '#10B981' },
+              ].map(({ label, detail, time, icon: Icon, color }) => (
+                <li key={label} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 p-3 touch-manipulation">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20` }}>
+                    <Icon className="w-4 h-4" style={{ color }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{label}</p>
+                    <p className="text-xs text-txt-secondary truncate">{detail}</p>
+                  </div>
+                  <span className="text-[10px] text-txt-secondary shrink-0">{time}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* Revenue Impact */}
           <section className={`${cardClass} p-4 md:p-5`}>
-            <h2 className="text-xl font-heading font-bold">Revenue Impact</h2>
-            <p className="text-sm text-[#A3A3A3] mb-4">Monthly revenue growth, reward-driven purchases, and repeat visit rate.</p>
-            <div className="h-[260px] md:h-[320px]">
+            <h2 className="text-base sm:text-xl font-heading font-bold">Revenue Impact</h2>
+            <p className="text-xs sm:text-sm text-txt-secondary mb-3 sm:mb-4">Monthly revenue growth and reward-driven purchases.</p>
+            <div className="h-[200px] sm:h-[260px] md:h-[320px] min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
@@ -253,46 +297,46 @@ const AdminPartnerDemoDashboard = () => {
             </div>
           </section>
 
-          {/* Section 3 */}
+          {/* Customer Loyalty Metrics: horizontal scroll on mobile */}
           <section className={`${cardClass} p-4 md:p-5`}>
-            <h2 className="text-xl font-heading font-bold">Customer Loyalty Metrics</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <h2 className="text-base sm:text-xl font-heading font-bold">Customer Loyalty Metrics</h2>
+            <div className="flex md:grid md:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar snap-x snap-mandatory">
               {rings.map((ring) => (
-                <div key={ring.label} className="rounded-xl border border-white/10 p-4 text-center">
+                <div key={ring.label} className="rounded-xl border border-border p-4 text-center min-w-[140px] sm:min-w-0 shrink-0 snap-center md:shrink">
                   <div
-                    className="mx-auto w-24 h-24 rounded-full grid place-items-center"
+                    className="mx-auto w-20 h-20 sm:w-24 sm:h-24 rounded-full grid place-items-center"
                     style={{ background: `conic-gradient(${ring.color} ${ring.value * 3.6}deg, rgba(255,255,255,0.08) 0)` }}
                   >
-                    <div className="w-16 h-16 rounded-full bg-[#050506] grid place-items-center">
-                      <span className="font-heading font-bold">{ring.value}%</span>
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-surface-page grid place-items-center">
+                      <span className="text-sm sm:text-base font-heading font-bold">{ring.value}%</span>
                     </div>
                   </div>
-                  <p className="text-sm text-[#A3A3A3] mt-3">{ring.label}</p>
+                  <p className="text-[10px] sm:text-sm text-txt-secondary mt-2 sm:mt-3 line-clamp-2">{ring.label}</p>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* Section 4 + 5 */}
+          {/* Rewards + Campaigns */}
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className={`${cardClass} p-4 md:p-5`}>
-              <h2 className="text-xl font-heading font-bold">Rewards Management</h2>
-              <div className="space-y-3 mt-4">
+              <h2 className="text-base sm:text-xl font-heading font-bold">Rewards Management</h2>
+              <div className="space-y-2 sm:space-y-3 mt-3 sm:mt-4">
                 {[
                   ['Free Coffee after 10 visits', 'Redemption rate: 38%'],
                   ['10% off next purchase', 'Redemption rate: 42%'],
                   ['Exclusive partner rewards', 'Redemption rate: 26%'],
                 ].map(([title, detail]) => (
-                  <motion.div key={title} whileHover={{ y: -3 }} className="rounded-xl border border-white/10 p-4">
-                    <p className="font-semibold">{title}</p>
-                    <p className="text-xs text-[#A3A3A3] mt-1">{detail}</p>
+                  <motion.div key={title} whileHover={!isMobile ? { y: -3 } : {}} className="rounded-xl border border-border p-3 sm:p-4">
+                    <p className="text-sm sm:text-base font-semibold truncate">{title}</p>
+                    <p className="text-[10px] sm:text-xs text-txt-secondary mt-0.5">{detail}</p>
                   </motion.div>
                 ))}
               </div>
             </div>
             <div className={`${cardClass} p-4 md:p-5`}>
-              <h2 className="text-xl font-heading font-bold">Campaign Tools</h2>
-              <div className="space-y-3 mt-4">
+              <h2 className="text-base sm:text-xl font-heading font-bold">Campaign Tools</h2>
+              <div className="space-y-2 sm:space-y-3 mt-3 sm:mt-4">
                 {[
                   ['Double Points Tuesday', Sparkles],
                   ['Weekend Bonus Rewards', Target],
@@ -304,22 +348,22 @@ const AdminPartnerDemoDashboard = () => {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: idx * 0.08 }}
-                    whileHover={{ y: -4 }}
-                    className="rounded-xl border border-white/10 p-4 flex items-center gap-3"
+                    whileHover={!isMobile ? { y: -4 } : {}}
+                    className="rounded-xl border border-border p-3 sm:p-4 flex items-center gap-3 touch-manipulation"
                   >
-                    <Icon className="w-5 h-5 text-[#14B8A6]" />
-                    <p>{title}</p>
+                    <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#14B8A6] shrink-0" />
+                    <p className="text-sm sm:text-base truncate">{title}</p>
                   </motion.div>
                 ))}
               </div>
             </div>
           </section>
 
-          {/* Section 6 */}
+          {/* Customer Insights */}
           <section className={`${cardClass} p-4 md:p-5`}>
-            <h2 className="text-xl font-heading font-bold">Customer Insights</h2>
-            <p className="text-sm text-[#A3A3A3] mb-4">Visit frequency and spending patterns.</p>
-            <div className="h-[240px] md:h-[300px]">
+            <h2 className="text-base sm:text-xl font-heading font-bold">Customer Insights</h2>
+            <p className="text-xs sm:text-sm text-txt-secondary mb-3 sm:mb-4">Visit frequency and spending patterns.</p>
+            <div className="h-[200px] sm:h-[240px] md:h-[300px] min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={insightsData}>
                   <defs>
@@ -339,11 +383,11 @@ const AdminPartnerDemoDashboard = () => {
             </div>
           </section>
 
-          {/* Section 7 */}
+          {/* Partner Network Discovery: compact on mobile */}
           <section className={`${cardClass} p-4 md:p-5`}>
-            <h2 className="text-xl font-heading font-bold">Partner Network Discovery</h2>
-            <p className="text-sm text-[#A3A3A3] mb-4">How customers flow between partner businesses.</p>
-            <div className="relative min-h-[260px] rounded-xl border border-white/10 overflow-hidden">
+            <h2 className="text-base sm:text-xl font-heading font-bold">Partner Network Discovery</h2>
+            <p className="text-xs sm:text-sm text-txt-secondary mb-3 sm:mb-4">How customers flow between partner businesses.</p>
+            <div className="relative min-h-[180px] sm:min-h-[260px] rounded-xl border border-border overflow-hidden">
               {[
                 ['Cafe', '18%', '20%'],
                 ['Gym', '26%', '62%'],
@@ -381,14 +425,17 @@ const AdminPartnerDemoDashboard = () => {
             </div>
           </section>
 
-          {/* Section 8 */}
-          <section className={`${cardClass} p-6 md:p-8 border border-[#14B8A6]/40`}>
-            <h2 className="text-2xl md:text-3xl font-heading font-bold text-center">Grow Your Business with Lynkr</h2>
-            <p className="text-center text-[#A3A3A3] mt-3 max-w-2xl mx-auto">
+          {/* CTA */}
+          <section className={`${cardClass} p-4 sm:p-6 md:p-8 border border-[#14B8A6]/40`}>
+            <h2 className="text-lg sm:text-2xl md:text-3xl font-heading font-bold text-center">Grow Your Business with Lynkr</h2>
+            <p className="text-center text-xs sm:text-sm text-txt-secondary mt-2 sm:mt-3 max-w-2xl mx-auto px-1">
               Turn everyday transactions into customer loyalty and measurable revenue growth.
             </p>
-            <div className="flex justify-center mt-6">
-              <Button className="rounded-xl bg-[#3B82F6] hover:bg-[#2b71e8]">
+            <div className="flex justify-center mt-4 sm:mt-6">
+              <Button
+                className="rounded-xl bg-[#3B82F6] hover:bg-[#2b71e8] min-h-11 w-full sm:w-auto touch-manipulation"
+                onClick={() => navigate('/partners')}
+              >
                 Become a Lynkr Partner
                 <motion.span animate={{ x: [0, 5, 0] }} transition={{ duration: 1.1, repeat: Infinity }}>
                   <TrendingUp className="w-4 h-4 ml-2" />

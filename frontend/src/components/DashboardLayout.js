@@ -31,13 +31,13 @@ const DashboardLayout = ({ children }) => {
 
   // Partner navigation items
   const partnerNavItems = [
-    { path: '/partner/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/partner/dashboard/orders', icon: ShoppingBag, label: 'Orders' },
+    { path: '/app/partner', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/app/partner/orders', icon: ShoppingBag, label: 'Orders' },
   ];
 
   // Admin navigation items
   const adminNavItems = [
-    { path: '/admin', icon: Users, label: 'Admin Panel' },
+    { path: '/app/admin', icon: Users, label: 'Admin Panel' },
   ];
 
   const navItems = user.role === 'USER' ? userNavItems : 
@@ -52,7 +52,7 @@ const DashboardLayout = ({ children }) => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div 
               className="cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => navigate(user.role === 'USER' ? '/dashboard' : user.role === 'PARTNER' ? '/partner/dashboard' : '/admin')}
+              onClick={() => navigate(user.role === 'USER' ? '/app/home' : user.role === 'PARTNER' ? '/app/partner' : '/app/admin')}
             >
               <Logo className="h-10 w-32" />
             </div>
@@ -124,7 +124,7 @@ const DashboardLayout = ({ children }) => {
               <h4 className="text-sm font-semibold mb-3">Support</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><a href="#" className="hover:text-foreground transition-colors">Help Center</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Contact</a></li>
+                <li><a href="mailto:admin@lynkr.club" className="hover:text-foreground transition-colors min-h-[44px] inline-flex items-center touch-manipulation">Contact</a></li>
               </ul>
             </div>
           </div>

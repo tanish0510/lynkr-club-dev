@@ -2,5 +2,7 @@
 /sitemap.xml    /sitemap.xml    200
 /sitemap-partners.xml    /sitemap-partners.xml    200
 /robots.txt    /robots.txt    200
+# Favicon: serve logo so Google/crawlers don't get SPA HTML (blue/broken icon)
+/favicon.ico    /icons/favicon-32x32.png    200
 # SPA fallback
 /*    /index.html    200

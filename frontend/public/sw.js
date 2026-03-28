@@ -1,5 +1,5 @@
-const CACHE_NAME = "lynkr-static-v2";
-const APP_SHELL = ["/", "/index.html", "/manifest.json"];
+const CACHE_NAME = "lynkr-static-v5";
+const APP_SHELL = ["/", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -27,10 +27,15 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // SPA navigation fallback keeps standalone app startup reliable.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match("/index.html"))
+      fetch(request, { cache: "reload" }).catch(() =>
+        caches.match("/index.html").then((r) =>
+          r || caches.match("/").then((r2) =>
+            r2 || new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } })
+          )
+        )
+      )
     );
     return;
   }
@@ -44,7 +49,9 @@ self.addEventListener("fetch", (event) => {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         return response;
-      }).catch(() => cached);
+      }).catch(() =>
+        cached || new Response("", { status: 504, statusText: "Gateway Timeout" })
+      );
 
       return cached || networkRequest;
     })

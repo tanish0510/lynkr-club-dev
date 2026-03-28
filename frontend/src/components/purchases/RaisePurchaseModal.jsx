@@ -121,17 +121,19 @@ const RaisePurchaseModal = ({ open, onOpenChange, partners, onSuccess, purchaseT
     }
   };
 
+  const inputCls = 'h-12 rounded-xl border-border bg-muted text-foreground placeholder:text-txt-placeholder';
+
   const formContent = (
-    <form onSubmit={submit} className="space-y-4 text-[#E5E7EB]">
+    <form onSubmit={submit} className="space-y-4 text-foreground">
       <div>
-        <Label className="mb-2 block text-[#D1D5DB]">Partner</Label>
+        <Label className="mb-2 block text-muted-foreground text-sm font-semibold">Partner</Label>
         <Select value={form.partner_id} onValueChange={(value) => setForm({ ...form, partner_id: value })}>
-          <SelectTrigger className="h-12 rounded-xl border-white/10 bg-[#1A1F2B] text-[#B8C0CC] data-[placeholder]:text-[#7B8498]">
+          <SelectTrigger className={`${inputCls} data-[placeholder]:text-txt-placeholder`}>
             <SelectValue placeholder="Select registered partner" />
           </SelectTrigger>
-          <SelectContent className="rounded-xl border-white/10 bg-[#111622] text-[#B8C0CC]">
+          <SelectContent className="rounded-xl border-border bg-popover text-foreground">
             {eligiblePartners.map((p) => (
-              <SelectItem key={p.id} value={p.id} className="text-[#B8C0CC] focus:bg-white/10 focus:text-[#E5E7EB]">
+              <SelectItem key={p.id} value={p.id} className="text-foreground focus:bg-muted">
                 {p.name}
                 {p.status ? ` (${String(p.status).toUpperCase()})` : ''}
               </SelectItem>
@@ -139,28 +141,28 @@ const RaisePurchaseModal = ({ open, onOpenChange, partners, onSuccess, purchaseT
           </SelectContent>
         </Select>
         {!isEdit && eligiblePartners.length === 0 ? (
-          <p className="text-xs text-muted-foreground mt-1">No registered partners available right now.</p>
+          <p className="text-xs text-txt-secondary mt-1">No registered partners available right now.</p>
         ) : null}
         {errors.partner_id ? <p className="text-xs text-red-400 mt-1">{errors.partner_id}</p> : null}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label className="mb-2 block text-[#D1D5DB]">Order ID</Label>
+          <Label className="mb-2 block text-muted-foreground text-sm font-semibold">Order ID</Label>
           <Input
             value={form.order_id}
             onChange={(e) => setForm({ ...form, order_id: e.target.value })}
-            className="h-12 rounded-xl border-white/10 bg-[#1A1F2B] text-[#E5E7EB] placeholder:text-[#7B8498]"
+            className={inputCls}
             placeholder="ORD-1234"
           />
           {errors.order_id ? <p className="text-xs text-red-400 mt-1">{errors.order_id}</p> : null}
         </div>
         <div>
-          <Label className="mb-2 block text-[#D1D5DB]">Transaction ID</Label>
+          <Label className="mb-2 block text-muted-foreground text-sm font-semibold">Transaction ID</Label>
           <Input
             value={form.transaction_id}
             onChange={(e) => setForm({ ...form, transaction_id: e.target.value })}
-            className="h-12 rounded-xl border-white/10 bg-[#1A1F2B] text-[#E5E7EB] placeholder:text-[#7B8498]"
+            className={inputCls}
             placeholder="TXN-5678"
           />
           {errors.transaction_id ? <p className="text-xs text-red-400 mt-1">{errors.transaction_id}</p> : null}
@@ -168,14 +170,14 @@ const RaisePurchaseModal = ({ open, onOpenChange, partners, onSuccess, purchaseT
       </div>
 
       <div>
-        <Label className="mb-2 block text-[#D1D5DB]">Amount</Label>
+        <Label className="mb-2 block text-muted-foreground text-sm font-semibold">Amount</Label>
         <Input
           type="number"
           min="0.01"
           step="0.01"
           value={form.amount}
           onChange={(e) => setForm({ ...form, amount: e.target.value })}
-          className="h-12 rounded-xl border-white/10 bg-[#1A1F2B] text-[#E5E7EB] placeholder:text-[#7B8498]"
+          className={inputCls}
           placeholder="999.00"
         />
         {errors.amount ? <p className="text-xs text-red-400 mt-1">{errors.amount}</p> : null}
@@ -183,13 +185,13 @@ const RaisePurchaseModal = ({ open, onOpenChange, partners, onSuccess, purchaseT
 
       {isMobile ? (
         <DrawerFooter className="px-0 pb-0">
-          <Button type="submit" className="min-h-11 rounded-full" disabled={submitting || !isValid}>
+          <Button type="submit" className="min-h-11 rounded-full font-bold" disabled={submitting || !isValid}>
             {submitting ? 'Submitting...' : isEdit ? 'Save Changes' : 'Submit Purchase'}
           </Button>
         </DrawerFooter>
       ) : (
         <DialogFooter>
-          <Button type="submit" className="min-h-11 rounded-full" disabled={submitting || !isValid}>
+          <Button type="submit" className="min-h-11 rounded-full font-bold" disabled={submitting || !isValid}>
             {submitting ? 'Submitting...' : isEdit ? 'Save Changes' : 'Submit Purchase'}
           </Button>
         </DialogFooter>
@@ -200,10 +202,10 @@ const RaisePurchaseModal = ({ open, onOpenChange, partners, onSuccess, purchaseT
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="border-white/10 bg-[#0F131D] text-[#E5E7EB] backdrop-blur-xl px-4 pb-6">
+        <DrawerContent className="border-border bg-background text-foreground backdrop-blur-xl px-4 pb-6">
           <DrawerHeader>
-            <DrawerTitle className="text-[#F1F5F9]">{isEdit ? 'Edit Pending Purchase' : 'Raise Purchase'}</DrawerTitle>
-            <DrawerDescription className="text-[#9CA3AF]">
+            <DrawerTitle className="text-foreground font-bold">{isEdit ? 'Edit Pending Purchase' : 'Raise Purchase'}</DrawerTitle>
+            <DrawerDescription className="text-txt-secondary">
               {isEdit
                 ? 'You can edit a pending manual purchase once before verification.'
                 : 'Submit your purchase for partner verification.'}
@@ -217,10 +219,10 @@ const RaisePurchaseModal = ({ open, onOpenChange, partners, onSuccess, purchaseT
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl rounded-3xl border-white/10 bg-[#0F131D] text-[#E5E7EB] backdrop-blur-xl">
+      <DialogContent className="sm:max-w-xl rounded-2xl border-border bg-background text-foreground backdrop-blur-xl">
         <DialogHeader>
-          <DialogTitle className="text-[#F1F5F9]">{isEdit ? 'Edit Pending Purchase' : 'Raise Purchase'}</DialogTitle>
-          <DialogDescription className="text-[#9CA3AF]">
+          <DialogTitle className="text-foreground font-bold">{isEdit ? 'Edit Pending Purchase' : 'Raise Purchase'}</DialogTitle>
+          <DialogDescription className="text-txt-secondary">
             {isEdit
               ? 'You can edit a pending manual purchase once before verification.'
               : 'Submit your purchase for partner verification.'}

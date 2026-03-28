@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,18 +7,38 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { toast } from 'sonner';
-import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/utils/api';
 import AvatarPicker from '@/components/AvatarPicker';
 import UsernameInput from '@/components/UsernameInput';
 import TermsModal from '@/components/TermsModal';
 import { DEFAULT_AVATAR } from '@/constants/avatars';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 const EnhancedAuthPage = ({ forcedMode }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const from = location.state?.from || '/app/home';
   const { login, logout, setTokenFromStorage } = useAuth();
+
+  /** Role-based default redirect; never send user to another role's area. */
+  const getRedirectForRole = (role) => {
+    if (role === 'USER') return '/app/home';
+    if (role === 'PARTNER') return '/app/partner';
+    if (role === 'ADMIN') return '/app/admin';
+    return '/app/home';
+  };
+  /** Only use `from` if it belongs to the given role (avoids sending USER to /app/partner after login). */
+  const getAllowedRedirect = (role, preferredFrom) => {
+    const defaultPath = getRedirectForRole(role);
+    if (!preferredFrom || preferredFrom === '/') return defaultPath;
+    if (role === 'USER' && (preferredFrom.startsWith('/app/partner') || preferredFrom.startsWith('/app/admin'))) return defaultPath;
+    if (role === 'PARTNER' && !preferredFrom.startsWith('/app/partner')) return defaultPath;
+    if (role === 'ADMIN' && !preferredFrom.startsWith('/app/admin')) return defaultPath;
+    return preferredFrom;
+  };
   const [loading, setLoading] = useState(false);
   const [signupStep, setSignupStep] = useState(1);
   const [signupSuccess, setSignupSuccess] = useState(false);
@@ -40,6 +60,7 @@ const EnhancedAuthPage = ({ forcedMode }) => {
     role: 'USER',
     terms_accepted: false,
     signup_otp: '',
+    referral_code: new URLSearchParams(window.location.search).get('ref') || '',
   });
   const [usernameValid, setUsernameValid] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -62,12 +83,14 @@ const EnhancedAuthPage = ({ forcedMode }) => {
       const user = await login(loginForm.email, loginForm.password);
       if (user.role !== 'USER') {
         logout();
-        toast.error('This account is not authorized for this portal. Please use the Partner or Admin portal.');
+        toast.error('This account is not authorized for this portal.');
         setLoading(false);
         return;
       }
       toast.success('Welcome back!');
-      navigate(user.onboarding_complete ? '/app/dashboard' : '/onboarding');
+      const target = user.onboarding_complete ? getAllowedRedirect(user.role, from) : '/onboarding';
+      // Defer navigation so auth context state is committed before ProtectedRoute runs (avoids wrong-role redirect).
+      setTimeout(() => navigate(target), 0);
     } catch (error) {
       toast.error(getRequestErrorMessage(error, 'Login failed'));
     } finally {
@@ -91,6 +114,7 @@ const EnhancedAuthPage = ({ forcedMode }) => {
         role: signupForm.role || 'USER',
         terms_accepted: signupForm.terms_accepted,
         signup_otp: signupForm.signup_otp.replace(/\s/g, ''),
+        referral_code: signupForm.referral_code.trim() || undefined,
       };
       const response = await api.post('/auth/signup', payload);
       const { token, user } = response.data;
@@ -105,6 +129,10 @@ const EnhancedAuthPage = ({ forcedMode }) => {
         setTimeout(() => navigate('/onboarding'), 900);
       } else if (user.role === 'PARTNER') {
         navigate('/partner-signup');
+      } else if (user.role === 'ADMIN') {
+        navigate('/app/admin');
+      } else {
+        setTimeout(() => navigate(getRedirectForRole(user.role)), 900);
       }
     } catch (error) {
       toast.error(getRequestErrorMessage(error, 'Signup failed'));
@@ -130,19 +158,22 @@ const EnhancedAuthPage = ({ forcedMode }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle size="sm" />
+      </div>
       <div className="w-full max-w-md">
         <Button
           data-testid="back-button"
           variant="ghost"
-          className="mb-6 min-h-11 hover:bg-white/5 rounded-full"
+          className="mb-6 min-h-11 hover:bg-muted rounded-full"
           onClick={() => navigate('/')}
         >
           <ArrowLeft className="mr-2 w-4 h-4" />
           Back to Home
         </Button>
         
-        <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-6 sm:p-8">
+        <div className="bg-card text-card-foreground rounded-3xl border border-border shadow-2xl p-6 sm:p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl sm:text-4xl font-bold font-heading mb-2">Welcome to Lynkr</h1>
             <p className="text-muted-foreground">Start earning rewards automatically</p>
@@ -190,7 +221,7 @@ const EnhancedAuthPage = ({ forcedMode }) => {
                     value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                     required
-                    className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
+                    className="bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
                   />
                 </div>
                 <div>
@@ -203,7 +234,7 @@ const EnhancedAuthPage = ({ forcedMode }) => {
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     required
-                    className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
+                    className="bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
                   />
                 </div>
                 <Button
@@ -225,236 +256,27 @@ const EnhancedAuthPage = ({ forcedMode }) => {
             </TabsContent>
             
             <TabsContent value="signup">
-              <div className="mb-3 text-center text-xs text-muted-foreground">{signupStep}/4</div>
-              <div className="mb-4 flex items-center justify-center gap-2">
-                {signupProgress.map((item) => (
-                  <span
-                    key={item}
-                    className={`h-2 rounded-full transition-all duration-200 ${
-                      signupStep >= item ? 'w-6 bg-primary' : 'w-2 bg-muted'
-                    }`}
-                  />
-                ))}
+              <div className="rounded-2xl border border-border bg-secondary/30 p-6 sm:p-8 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
+                  <Rocket className="h-7 w-7 text-primary" />
+                </div>
+                <h2 className="text-xl sm:text-2xl font-heading font-bold text-foreground">
+                  Pilot launching soon!
+                </h2>
+                <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-sm mx-auto">
+                  We&apos;re not accepting new signups right now. Join the waitlist and we&apos;ll notify you when we launch.
+                </p>
+                <Button
+                  type="button"
+                  className="mt-6 min-h-12 rounded-full px-6 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                  onClick={() => navigate('/?openWaitlist=1')}
+                >
+                  Join the waitlist
+                </Button>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Already have an account? Switch to the <button type="button" className="underline text-foreground" onClick={() => setActiveTab('login')}>Login</button> tab.
+                </p>
               </div>
-
-              <AnimatePresence mode="wait">
-                {signupSuccess ? (
-                  <motion.div
-                    key="signup-success"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.24 }}
-                    className="rounded-2xl border border-white/10 bg-secondary/30 p-6 text-center"
-                  >
-                    <CheckCircle2 className="mx-auto mb-3 h-12 w-12 text-emerald-400" />
-                    <h3 className="text-2xl font-heading font-bold">Welcome to Lynkr.</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">Setting up your onboarding experience...</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Your Lynkr app and Lynkr mailbox now use the same signup password.
-                    </p>
-                  </motion.div>
-                ) : (
-                  <motion.form
-                    key={`signup-step-${signupStep}`}
-                    data-testid="signup-form"
-                    onSubmit={handleSignup}
-                    initial={{ opacity: 0, x: 16 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -16 }}
-                    transition={{ duration: 0.24 }}
-                    className="space-y-4"
-                  >
-                    {signupStep === 1 ? (
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="signup-email" className="text-sm font-medium mb-2 block">Email</Label>
-                          <Input
-                            id="signup-email"
-                            data-testid="signup-email-input"
-                            type="email"
-                            placeholder="you@example.com"
-                            value={signupForm.email}
-                            onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                            required
-                            className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="signup-password" className="text-sm font-medium mb-2 block">Password</Label>
-                          <Input
-                            id="signup-password"
-                            data-testid="signup-password-input"
-                            type="password"
-                            placeholder="At least 8 characters"
-                            value={signupForm.password}
-                            onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                            required
-                            className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
-                          />
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Use at least 8 characters. This same password will also be used for your Lynkr mailbox login.
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          disabled={!signupForm.email.trim() || signupForm.password.trim().length < 8 || sendingOtp}
-                          className="w-full min-h-11 mt-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary disabled:opacity-60"
-                          onClick={handleSendOtpAndContinue}
-                        >
-                          {sendingOtp ? (
-                            <>
-                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              Sending code...
-                            </>
-                          ) : (
-                            'Send verification code'
-                          )}
-                        </Button>
-                      </div>
-                    ) : null}
-
-                    {signupStep === 2 ? (
-                      <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground text-center">
-                          We sent a 6-digit code to <strong className="text-foreground">{signupForm.email}</strong> from admin@lynkr.club. Enter it below.
-                        </p>
-                        <div className="flex justify-center">
-                          <InputOTP
-                            maxLength={6}
-                            value={signupForm.signup_otp}
-                            onChange={(v) => setSignupForm({ ...signupForm, signup_otp: v })}
-                          >
-                            <InputOTPGroup className="gap-2">
-                              {[0, 1, 2, 3, 4, 5].map((i) => (
-                                <InputOTPSlot key={i} index={i} className="rounded-lg border-white/20 h-12 w-12 text-lg" />
-                              ))}
-                            </InputOTPGroup>
-                          </InputOTP>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button type="button" variant="outline" className="min-h-11 rounded-full" onClick={() => setSignupStep(1)}>
-                            Back
-                          </Button>
-                          <Button
-                            type="button"
-                            className="min-h-11 rounded-full"
-                            disabled={signupForm.signup_otp.replace(/\s/g, '').length !== 6}
-                            onClick={() => setSignupStep(3)}
-                          >
-                            Continue
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {signupStep === 3 ? (
-                      <div className="space-y-4">
-                        <UsernameInput
-                          value={signupForm.username}
-                          onChange={(username) => setSignupForm({ ...signupForm, username })}
-                          onValidityChange={setUsernameValid}
-                        />
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <Button type="button" variant="outline" className="min-h-11 rounded-full" onClick={() => setSignupStep(2)}>
-                            Back
-                          </Button>
-                          <Button
-                            type="button"
-                            className="min-h-11 rounded-full"
-                            disabled={!usernameValid}
-                            onClick={() => setSignupStep(4)}
-                          >
-                            Continue
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {signupStep === 4 ? (
-                      <>
-                        <div>
-                          <Label className="text-sm font-medium mb-2 block">Choose your avatar</Label>
-                          <AvatarPicker
-                            value={signupForm.avatar}
-                            onChange={(avatar) => setSignupForm({ ...signupForm, avatar })}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="full-name" className="text-sm font-medium mb-2 block">Name (optional)</Label>
-                          <Input
-                            id="full-name"
-                            data-testid="full-name-input"
-                            type="text"
-                            placeholder="Your name"
-                            value={signupForm.full_name}
-                            onChange={(e) => setSignupForm({ ...signupForm, full_name: e.target.value })}
-                            className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="role" className="text-sm font-medium mb-2 block">I am a</Label>
-                          <select
-                            id="role"
-                            data-testid="role-select"
-                            value={signupForm.role}
-                            onChange={(e) => setSignupForm({ ...signupForm, role: e.target.value })}
-                            className="w-full bg-secondary/50 border border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-base text-foreground"
-                          >
-                            <option value="USER">User (Shopper)</option>
-                            <option value="PARTNER">Partner (Brand)</option>
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground">
-                            To continue, you must read and accept the Terms and Conditions.
-                          </p>
-                          {signupForm.terms_accepted ? (
-                            <p className="text-sm text-primary font-medium flex items-center gap-2">
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary">✓</span>
-                              Terms and Conditions accepted
-                            </p>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="w-full min-h-11 rounded-xl text-primary border-primary/30 hover:bg-primary/10"
-                              onClick={() => setTermsModalOpen(true)}
-                            >
-                              View Terms and Conditions
-                            </Button>
-                          )}
-                        </div>
-                        <TermsModal
-                          open={termsModalOpen}
-                          onOpenChange={setTermsModalOpen}
-                          onAccept={() => setSignupForm((prev) => ({ ...prev, terms_accepted: true }))}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button type="button" variant="outline" className="min-h-11 rounded-full" onClick={() => setSignupStep(3)}>
-                            Back
-                          </Button>
-                          <Button
-                            data-testid="signup-submit-button"
-                            type="submit"
-                            disabled={loading || !usernameValid || !signupForm.avatar || !signupForm.terms_accepted}
-                            className="min-h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
-                          >
-                            {loading ? (
-                              <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                Creating...
-                              </>
-                            ) : (
-                              'Create Account'
-                            )}
-                          </Button>
-                        </div>
-                      </>
-                    ) : null}
-                  </motion.form>
-                )}
-              </AnimatePresence>
             </TabsContent>
           </Tabs>
         </div>

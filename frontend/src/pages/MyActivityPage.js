@@ -120,7 +120,7 @@ const MyActivityPage = () => {
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
-          <div className="rounded-2xl md:rounded-3xl border border-white/5 bg-card/80 p-3 md:p-6">
+          <div className="rounded-2xl md:rounded-3xl border border-border bg-card/80 p-3 md:p-6">
             {loadingRedemptions ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((n) => (
@@ -147,7 +147,7 @@ const MyActivityPage = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <code className="text-xs font-mono bg-black/25 px-2 py-1.5 rounded-lg truncate max-w-[120px] md:max-w-none">
+                      <code className="text-xs font-mono bg-surface-overlay/25 px-2 py-1.5 rounded-lg truncate max-w-[120px] md:max-w-none">
                         {item.coupon_code}
                       </code>
                       <Button

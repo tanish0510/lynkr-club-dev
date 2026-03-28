@@ -102,7 +102,7 @@ const AdminCouponRequests = () => {
 
       <div className="space-y-4">
         {requests.length === 0 ? (
-          <div className="bg-card rounded-2xl border border-white/5 p-12 text-center">
+          <div className="bg-card rounded-2xl border border-border p-12 text-center">
             <p className="text-muted-foreground">No coupon requests yet.</p>
           </div>
         ) : (
@@ -113,7 +113,7 @@ const AdminCouponRequests = () => {
             const form = editForm[req.id] || {};
 
             return (
-              <div key={req.id} className="bg-card rounded-2xl border border-white/5 p-6 shadow-sm">
+              <div key={req.id} className="bg-card rounded-2xl border border-border p-6 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -159,7 +159,7 @@ const AdminCouponRequests = () => {
                   )}
                 </div>
                 {isEdit && req.status === 'PENDING' && (
-                  <div className="mt-6 pt-6 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="mt-6 pt-6 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label>Title</Label>
                       <Input
@@ -182,7 +182,7 @@ const AdminCouponRequests = () => {
                       <select
                         value={form.value_type}
                         onChange={(e) => setEditForm((p) => ({ ...p, [req.id]: { ...p[req.id], value_type: e.target.value } }))}
-                        className="mt-1 w-full rounded-xl h-10 bg-secondary/50 border border-white/10 px-3"
+                        className="mt-1 w-full rounded-xl h-10 bg-secondary/50 border border-border px-3"
                       >
                         <option value="fixed">Fixed</option>
                         <option value="percentage">Percentage</option>

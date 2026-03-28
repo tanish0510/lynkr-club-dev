@@ -1,20 +1,40 @@
 services:
-  mongodb:
-    image: mongo:7.0
-    container_name: lynkr-mongodb
+  postgres:
+    image: postgres:16-alpine
+    container_name: lynkr-postgres
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "5432:5432"
     environment:
-      MONGO_INITDB_DATABASE: ${DB_NAME:-lynkr_db}
+      POSTGRES_USER: ${POSTGRES_USER:-lynkr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lynkr}
+      POSTGRES_DB: ${POSTGRES_DB:-lynkr_db}
     volumes:
-      - mongodb_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lynkr} -d ${POSTGRES_DB:-lynkr_db}"]
+      interval: 5s
       timeout: 10s
       retries: 10
       start_period: 30s
+    networks:
+      - lynkr-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: lynkr-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - lynkr-network
 
@@ -25,8 +45,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      MONGO_URL: mongodb://mongodb:27017
-      DB_NAME: ${DB_NAME:-lynkr_db}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lynkr}:${POSTGRES_PASSWORD:-lynkr}@postgres:5432/${POSTGRES_DB:-lynkr_db}
       JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
@@ -38,8 +57,10 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://lynkr.club,https://www.lynkr.club}
     env_file:
       - .env
+    volumes:
+      - catalog_uploads:/app/uploads
     depends_on:
-      mongodb:
+      postgres:
         condition: service_healthy
     networks:
       - lynkr-network
@@ -52,25 +73,6 @@ services:
       - "3000:80"
     depends_on:
       - backend
-    networks:
-      - lynkr-network
-
-  mongo-express:
-    image: mongo-express:latest
-    container_name: lynkr-mongo-express
-    restart: unless-stopped
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
-      ME_CONFIG_MONGODB_SERVER: mongodb
-      ME_CONFIG_MONGODB_PORT: 27017
-      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USERNAME:-admin}
-      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin}
-      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
-    depends_on:
-      mongodb:
-        condition: service_healthy
     networks:
       - lynkr-network
 
@@ -95,5 +97,9 @@ networks:
     driver: bridge
 
 volumes:
-  mongodb_data:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  catalog_uploads:
     driver: local

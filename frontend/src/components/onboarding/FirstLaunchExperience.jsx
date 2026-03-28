@@ -90,7 +90,7 @@ const FirstLaunchExperience = () => {
 
   const finishIntro = () => {
     localStorage.setItem('hasSeenIntro', '1');
-    navigate('/signup');
+    navigate('/app/signup');
   };
 
   const goNextSlide = () => {

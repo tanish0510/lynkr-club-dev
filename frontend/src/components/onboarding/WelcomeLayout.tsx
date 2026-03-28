@@ -50,7 +50,7 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
   }
 
   return (
-    <section className="min-h-screen bg-[#0E0E0E] px-4 py-8" style={{ color: '#FFFFFF' }}>
+    <section className="min-h-screen bg-surface-raised px-4 py-8" style={{ color: '#FFFFFF' }}>
       <style>{`.welcome-slide-icon svg,
 .welcome-slide-icon path { stroke: #FFFFFF !important; color: #FFFFFF !important; }
 .welcome-slide-icon svg { fill: none !important; }`}</style>
@@ -58,7 +58,7 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
         <div className="mb-6 flex justify-end">
           <Button
             variant="ghost"
-            className="min-h-11 rounded-full hover:bg-white/5"
+            className="min-h-11 rounded-full hover:bg-muted"
             style={{ color: '#FFFFFF' }}
             onClick={complete}
           >
@@ -73,10 +73,10 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -24 }}
             transition={{ duration: 0.28, ease: 'easeInOut' }}
-            className="flex flex-1 flex-col rounded-3xl border border-white/10 bg-gradient-to-b from-[#1A1D24] to-[#101319] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
+            className="flex flex-1 flex-col rounded-3xl border border-border bg-gradient-to-b from-[#1A1D24] to-[#101319] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
             style={{ color: '#FFFFFF' }}
           >
-            <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#20242D] to-[#131722]">
+            <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-[#20242D] to-[#131722]">
               <motion.div
                 className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(237,237,237,0.16),transparent_60%)]"
                 animate={{ x: [0, 8, 0], y: [0, -6, 0] }}
@@ -90,7 +90,7 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
                 animate={{ rotate: 360 }}
                 transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
               >
-                <div className="h-32 w-32 rounded-full border border-white/[0.06]" />
+                <div className="h-32 w-32 rounded-full border border-border" />
               </motion.div>
               <motion.div
                 className="absolute inset-0 flex items-center justify-center"
@@ -98,11 +98,11 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
                 animate={{ rotate: -360 }}
                 transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
               >
-                <div className="h-40 w-40 rounded-full border border-white/[0.04]" />
+                <div className="h-40 w-40 rounded-full border border-border" />
               </motion.div>
               <div className="relative z-10 flex flex-col items-center gap-3 text-center">
                 <motion.div
-                  className="welcome-slide-icon flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-[#0F1218]/90 shadow-[0_0_20px_rgba(255,255,255,0.04)] backdrop-blur"
+                  className="welcome-slide-icon flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-[#0F1218]/90 shadow-[0_0_20px_rgba(255,255,255,0.04)] backdrop-blur"
                   animate={{ scale: [1, 1.05, 1], opacity: [0.95, 1, 0.95] }}
                   transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
                 >
@@ -112,7 +112,7 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
                     'aria-hidden': false,
                   })}
                 </motion.div>
-                <span className="rounded-full border border-white/10 bg-[#0D1016]/90 px-3 py-1 text-xs font-medium" style={{ color: '#FFFFFF' }}>
+                <span className="rounded-full border border-border bg-[#0D1016]/90 px-3 py-1 text-xs font-medium" style={{ color: '#FFFFFF' }}>
                   {slides[slideIndex].chip}
                 </span>
               </div>
@@ -128,7 +128,7 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
 
         <div className="mt-6 flex justify-center gap-2">
           {slides.map((_, i) => (
-            <span key={i} className={`h-2 rounded-full ${i === slideIndex ? 'w-6 bg-primary' : 'w-2 bg-white/20'}`} />
+            <span key={i} className={`h-2 rounded-full ${i === slideIndex ? 'w-6 bg-primary' : 'w-2 bg-muted'}`} />
           ))}
         </div>
 
@@ -136,7 +136,7 @@ const WelcomeLayout = ({ onComplete, onLogin }) => {
           <Button
             type="button"
             variant="outline"
-            className="min-h-11 rounded-full border-white/15 bg-white/5 hover:bg-white/10"
+            className="min-h-11 rounded-full border-border bg-muted/30 hover:bg-muted"
             style={{ color: '#FFFFFF' }}
             onClick={() => onLogin?.()}
           >

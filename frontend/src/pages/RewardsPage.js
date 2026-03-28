@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Gift, Copy, ArrowRight } from "lucide-react";
+import { Gift, Copy, ArrowRight, Ticket, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import api from "@/utils/api";
-import useIsMobile from "@/hooks/useIsMobile";
+import api, { resolveImageUrl } from "@/utils/api";
 import PointsCard from "@/components/rewards/PointsCard";
 import RewardsList from "@/components/rewards/RewardsList";
 import RedeemModal from "@/components/rewards/RedeemModal";
@@ -13,8 +12,8 @@ import PullToRefresh from "@/components/mobile/PullToRefresh";
 
 const RewardsPage = () => {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
   const [points, setPoints] = useState(0);
+  const [lockedPts, setLockedPts] = useState(0);
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState(null);
@@ -35,7 +34,12 @@ const RewardsPage = () => {
       setCoupons(couponsRes.data || []);
     } catch (error) {
       toast.error("Failed to load rewards");
-    } finally {
+    }
+    try {
+      const res = await api.get('/dynamic-coupons/unlock-status');
+      setLockedPts(res.data?.locked_points ?? 0);
+    } catch { /* */ }
+    finally {
       setLoading(false);
     }
   };
@@ -94,74 +98,96 @@ const RewardsPage = () => {
   const featuredRewards = coupons.slice(0, 4);
 
   return (
-      <PullToRefresh onRefresh={fetchRewardsData}>
+    <PullToRefresh onRefresh={fetchRewardsData}>
       <motion.div
-        className="max-w-6xl mx-auto px-4 sm:px-5 py-4 md:py-10 pb-24 md:pb-10"
+        className="max-w-3xl mx-auto px-5 pt-7 pb-12 sm:px-6"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22 }}
       >
-        {/* Header: compact on mobile */}
-        <motion.header
-          className="mb-4 md:mb-6"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="inline-flex items-center gap-2 bg-primary/15 px-3 py-1.5 rounded-full mb-2 md:mb-3">
-            <Gift className="w-4 h-4 md:w-5 md:h-5 text-primary" />
-            <span className="text-xs md:text-sm font-medium text-primary">Rewards</span>
-          </div>
-          <h1 className="text-2xl md:text-5xl font-bold font-heading mb-1 md:mb-2">Rewards</h1>
-          <p className="text-xs md:text-lg text-muted-foreground mb-4 md:mb-5">
+        <header className="mb-6">
+          <p className="text-[11px] text-txt-secondary uppercase tracking-[0.2em] font-bold">Your Rewards</p>
+          <h1 className="mt-1.5 text-2xl sm:text-3xl font-heading font-bold text-foreground">Rewards</h1>
+          <p className="text-xs text-txt-secondary font-medium mt-1 mb-5">
             Redeem your points for offers.
           </p>
-          <div className={`flex flex-col gap-3 md:gap-4 ${isMobile ? "w-full" : "flex-row flex-wrap items-start"}`}>
-            <div className={isMobile ? "w-full" : "inline-block"}>
-              <PointsCard points={points} />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto min-h-[44px] rounded-xl text-sm shrink-0"
-              onClick={() => navigate("/app/community")}
-            >
-              View leaderboard
-            </Button>
+          <div className="w-full mb-3">
+            <PointsCard points={points} lockedPoints={lockedPts} />
           </div>
-        </motion.header>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto min-h-10 rounded-xl text-sm font-bold border-border"
+            onClick={() => navigate("/app/community")}
+          >
+            View leaderboard
+          </Button>
+        </header>
 
-        {/* Featured strip: horizontal scroll on mobile, optional on desktop */}
+        {/* Dynamic Coupons Teaser */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-6"
+        >
+          <button
+            type="button"
+            onClick={() => navigate("/app/dynamic-coupons")}
+            className="w-full rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-center gap-4 text-left transition-all hover:bg-primary/10 active:scale-[0.98] touch-manipulation"
+          >
+            <div className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+              <Ticket className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-foreground">Dynamic Coupons</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Slide to unlock real gift cards from top brands</p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </button>
+        </motion.section>
+
         {featuredRewards.length > 0 ? (
-          <section className="rounded-2xl md:rounded-3xl border border-white/10 bg-card/60 p-3 md:p-4 mb-4 md:mb-5">
-            <h2 className="text-sm md:text-lg font-semibold mb-3 px-0.5">Featured</h2>
-            <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1 snap-x snap-mandatory -mx-0.5">
+          <section className="mb-6">
+            <p className="text-[11px] text-txt-secondary uppercase tracking-[0.2em] font-bold mb-3.5">Featured</p>
+            <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1 snap-x snap-mandatory -mx-5 px-5 sm:-mx-6 sm:px-6">
               {featuredRewards.map((reward) => (
                 <article
                   key={reward.id}
-                  className={`flex-shrink-0 snap-start rounded-xl md:rounded-2xl border border-white/10 bg-background/60 p-3 md:p-4 ${isMobile ? "w-[160px]" : "min-w-[200px]"}`}
+                  className="flex-shrink-0 snap-start w-[170px] rounded-2xl border border-border bg-card overflow-hidden transition-all hover:border-primary/30 hover:shadow-md active:scale-[0.98] touch-manipulation"
                 >
-                  <p className="text-[11px] md:text-xs text-primary font-medium truncate">{reward.partner_name || "Partner"}</p>
-                  <h3 className="mt-1 text-sm md:text-base font-medium line-clamp-2">{reward.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-1.5">{reward.points_cost} pts</p>
-                  <Button
-                    className="w-full min-h-[44px] mt-2.5 rounded-xl text-xs"
-                    size="sm"
-                    onClick={() => setSelectedCoupon(reward)}
-                    disabled={points < reward.points_cost}
-                  >
-                    Redeem
-                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                  </Button>
+                  <div className="p-3.5 pb-2.5">
+                    <div className="h-10 w-10 rounded-xl overflow-hidden bg-muted flex items-center justify-center border border-border/50 mb-2.5">
+                      {reward.partner_logo ? (
+                        <img src={resolveImageUrl(reward.partner_logo)} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Gift className="h-4 w-4 text-primary/50" />
+                      )}
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground line-clamp-2 leading-snug">{reward.title}</h3>
+                    <p className="text-[11px] text-muted-foreground font-medium mt-1 truncate">{reward.partner_name || "Partner"}</p>
+                  </div>
+                  <div className="border-t border-dashed border-border mx-2" />
+                  <div className="p-3.5 pt-2.5 flex items-center justify-between">
+                    <span className="text-xs text-primary font-bold tabular-nums">{reward.points_cost} pts</span>
+                    <Button
+                      className="h-8 px-3 rounded-full text-[11px] font-bold"
+                      size="sm"
+                      onClick={() => setSelectedCoupon(reward)}
+                      disabled={points < reward.points_cost}
+                    >
+                      Redeem
+                      <ArrowRight className="ml-1 h-3 w-3" />
+                    </Button>
+                  </div>
                 </article>
               ))}
             </div>
           </section>
         ) : null}
 
-        {/* All rewards list */}
-        <section className="mb-6 md:mb-8">
-          <h2 className="text-base md:text-xl font-semibold mb-3 px-0.5">All rewards</h2>
+        <section className="mb-6">
+          <p className="text-[11px] text-txt-secondary uppercase tracking-[0.2em] font-bold mb-3.5">All Rewards</p>
           <RewardsList
             coupons={coupons}
             points={points}
@@ -197,7 +223,7 @@ const RewardsPage = () => {
           ) : null}
         </AnimatePresence>
       </motion.div>
-      </PullToRefresh>
+    </PullToRefresh>
   );
 };
 

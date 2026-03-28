@@ -5,7 +5,7 @@ import LogoAnimated from "@/components/LogoAnimated";
 const BrandLoader = ({ label = "Loading Lynkr experience..." }) => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="flex w-full max-w-[320px] flex-col items-center gap-4 rounded-3xl border border-white/10 bg-card/60 p-6">
+      <div className="flex w-full max-w-[320px] flex-col items-center gap-4 rounded-3xl border border-border bg-card/60 p-6">
         <LogoAnimated className="w-[180px]" />
         <motion.div
           className="h-1.5 w-32 overflow-hidden rounded-full bg-primary/20"

@@ -1,51 +1,59 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Sparkles, Send, Bot, UserRound } from 'lucide-react';
+import { Sparkles, ArrowLeft, Trash2, Plus, Bot } from 'lucide-react';
 import api from '@/utils/api';
+import MessageBubbleUser from '@/components/ai/MessageBubbleUser';
+import MessageCardAI from '@/components/ai/MessageCardAI';
+import SuggestionChips from '@/components/ai/SuggestionChips';
+import InputBar from '@/components/ai/InputBar';
+
+const SUGGESTIONS = [
+  'How can I save more?',
+  'Best rewards for me',
+  'Track my spending',
+  'Help me budget better',
+  'What should I buy next?',
+  'Analyze my purchases',
+];
 
 const AIInsights = () => {
-  const [insights, setInsights] = useState(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const endRef = useRef(null);
 
   useEffect(() => {
-    fetchInsights();
-    fetchHistory();
+    (async () => {
+      try {
+        const res = await api.get('/chat/history');
+        setMessages(res.data || []);
+      } catch {
+        setMessages([]);
+      } finally {
+        setLoadingHistory(false);
+      }
+    })();
   }, []);
 
-  const fetchInsights = async () => {
-    try {
-      const response = await api.get('/ai/insights');
-      setInsights(response.data);
-    } catch (error) {
-      toast.error('Failed to load insights');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!loadingHistory) {
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
     }
+  }, [loadingHistory]);
+
+  const scrollToBottom = () => {
+    setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 60);
   };
 
-  const fetchHistory = async () => {
-    try {
-      const response = await api.get('/chat/history');
-      setMessages(response.data || []);
-    } catch (_) {
-      setMessages([]);
-    }
-  };
-
-  const suggestionPrompts = useMemo(
-    () => ['How can I earn more?', 'Best reward for me?', 'My spending pattern?'],
-    []
-  );
-
-  const sendMessage = async (messageOverride) => {
-    const message = (messageOverride || inputMessage).trim();
+  const sendMessage = async (text) => {
+    const message = (text || inputMessage).trim();
     if (!message || sending) return;
+
     const optimistic = {
       id: String(Date.now()),
       role: 'user',
@@ -55,11 +63,13 @@ const AIInsights = () => {
     setMessages((prev) => [...prev, optimistic]);
     setInputMessage('');
     setSending(true);
+    scrollToBottom();
+
     try {
-      const response = await api.post('/chat', { message });
-      setMessages((prev) => [...prev, response.data]);
-      setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 60);
-    } catch (_) {
+      const res = await api.post('/chat', { message });
+      setMessages((prev) => [...prev, res.data]);
+      scrollToBottom();
+    } catch {
       toast.error('Failed to send message');
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
     } finally {
@@ -67,149 +77,191 @@ const AIInsights = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center">
-            <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
-            <p className="text-muted-foreground">Analyzing your spending patterns...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const clearChat = async () => {
+    try {
+      await api.delete('/chat/history');
+      setMessages([]);
+      toast.success('Chat cleared');
+    } catch {
+      toast.error('Failed to clear chat');
+    }
+  };
 
-  if (!insights) {
-    return (
-        <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
-          <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-10 text-center">
-            <Sparkles className="w-12 h-12 text-primary mx-auto mb-4" />
-            <h1 className="text-3xl font-bold font-heading mb-2">AI Insights unavailable</h1>
-            <p className="text-muted-foreground mb-6">Could not load insights right now. Try again.</p>
-            <Button className="rounded-full min-h-11" onClick={fetchInsights}>Retry</Button>
-          </div>
-        </div>
-    );
-  }
+  const newChat = () => {
+    setMessages([]);
+  };
+
+  const isEmpty = messages.length === 0 && !loadingHistory;
+  const firstName = user?.full_name?.split(' ')[0] || user?.username || 'there';
 
   return (
-      <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full mb-4">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium text-primary">AI Assistant</span>
+    <div className="flex flex-col h-[100dvh] bg-surface-page max-w-2xl mx-auto w-full">
+
+      {/* ── TOP BAR ── */}
+      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-surface-page/95 backdrop-blur-md z-10">
+        <button
+          type="button"
+          onClick={() => navigate('/app/home')}
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-txt-muted hover:text-muted-foreground hover:bg-muted transition-all"
+        >
+          <ArrowLeft className="h-[18px] w-[18px]" />
+        </button>
+
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-primary/12 flex items-center justify-center">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold font-heading mb-2">AI Insights & Chat</h1>
-          <p className="text-sm md:text-lg text-muted-foreground">Ask questions, get spending guidance, and optimize rewards.</p>
+          <span className="text-[15px] font-heading font-bold">Lynkr AI</span>
         </div>
 
-        <section className="grid gap-3 md:grid-cols-3 mb-5">
-          <article className="rounded-3xl border border-white/10 bg-card/80 p-4 md:col-span-2">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">This month</p>
-            <p className="text-2xl font-heading font-bold mt-1">₹{(insights.spending_total || 0).toFixed(0)} spent</p>
-            <p className="text-sm text-muted-foreground mt-2">{insights.monthly_trend}</p>
-          </article>
-          <article className="rounded-3xl border border-white/10 bg-card/80 p-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Persona</p>
-            <p className="text-lg font-semibold mt-1 text-primary">{insights.spending_persona}</p>
-          </article>
-        </section>
+        <div className="flex items-center gap-0.5">
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={clearChat}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-txt-muted hover:text-txt-secondary hover:bg-muted transition-all"
+              title="Clear chat"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={newChat}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-txt-muted hover:text-txt-secondary hover:bg-muted transition-all"
+            title="New chat"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
 
-        <section className="rounded-3xl border border-white/10 bg-card/80 p-4 mb-5">
-          <h2 className="text-base font-semibold mb-3">Suggested prompts</h2>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {suggestionPrompts.map((prompt) => (
-              <Button
-                key={prompt}
-                variant="outline"
-                className="min-h-11 rounded-full whitespace-nowrap"
-                onClick={() => sendMessage(prompt)}
-              >
-                {prompt}
-              </Button>
-            ))}
+      {/* ── CHAT AREA ── */}
+      <div className="flex-1 overflow-y-auto">
+        {loadingHistory ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <p className="text-[12px] text-txt-muted">Loading conversation...</p>
+            </div>
           </div>
-        </section>
-
-        <section className="rounded-3xl border border-white/10 bg-card/80 p-4">
-          <div className="h-[50vh] min-h-[360px] overflow-y-auto rounded-2xl border border-white/10 bg-background/40 p-3">
-            {messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-center">
-                <div>
-                  <Bot className="h-8 w-8 text-primary mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Start chatting with Lynkr AI.</p>
-                </div>
+        ) : isEmpty ? (
+          /* ── EMPTY STATE ── */
+          <div className="h-full flex flex-col items-center justify-center px-6">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-primary/8 border border-primary/10 flex items-center justify-center">
+                <Sparkles className="h-7 w-7 text-primary" />
               </div>
-            ) : (
-              <div className="space-y-3">
-                {messages.slice(-25).map((msg, index) => (
-                  <div
-                    key={msg.id || index}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -inset-8 rounded-3xl opacity-30"
+                style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)' }}
+              />
+            </div>
+
+            <h2 className="text-lg sm:text-xl font-heading font-bold text-foreground mb-1 text-center">
+              Hi {firstName}
+            </h2>
+            <p className="text-[13px] text-txt-muted text-center max-w-[280px] leading-relaxed mb-8">
+              Your AI assistant for smarter spending & rewards.
+            </p>
+
+            <div className="w-full max-w-sm">
+              <p className="text-[10px] uppercase tracking-wider text-txt-muted font-medium mb-2.5 pl-1">
+                Try asking
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {SUGGESTIONS.slice(0, 4).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => sendMessage(s)}
+                    className="text-left rounded-xl border border-border bg-muted/30 px-3.5 py-3 text-[12px] font-medium text-txt-secondary leading-snug transition-all hover:bg-muted hover:border-primary/30 hover:text-muted-foreground active:scale-[0.98]"
                   >
-                    <div
-                      className={`max-w-[84%] rounded-2xl px-3 py-2 text-sm ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary/60 text-foreground'
-                      }`}
-                    >
-                      <div className="mb-1 flex items-center gap-1 text-[10px] opacity-70">
-                        {msg.role === 'user' ? <UserRound className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
-                        <span>{msg.role === 'user' ? 'You' : 'Lynkr AI'}</span>
-                      </div>
-                      {msg.content}
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ── MESSAGES ── */
+          <div className="px-4 py-4 space-y-3">
+            {messages.map((msg, idx) => {
+              const isUser = msg.role === 'user';
+              const showAvatar = idx === 0 || messages[idx - 1]?.role !== msg.role;
+              const isLast = idx === messages.length - 1 || messages[idx + 1]?.role !== msg.role;
+
+              if (isUser) {
+                return (
+                  <MessageBubbleUser
+                    key={msg.id || idx}
+                    content={msg.content}
+                    timestamp={msg.timestamp}
+                    isFirst={showAvatar}
+                    isLast={isLast}
+                  />
+                );
+              }
+
+              return (
+                <MessageCardAI
+                  key={msg.id || idx}
+                  content={msg.content}
+                  timestamp={isLast ? msg.timestamp : null}
+                  showAvatar={showAvatar}
+                />
+              );
+            })}
+
+            {/* Typing indicator */}
+            {sending && (
+              <div className="flex justify-start">
+                <div className="max-w-[92%] sm:max-w-[82%]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center">
+                      <Bot className="w-3 h-3 text-primary" />
+                    </div>
+                    <span className="text-[11px] font-semibold text-txt-secondary">Lynkr AI</span>
+                  </div>
+                  <div className="rounded-2xl bg-card border border-border px-5 py-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
-                ))}
-                <div ref={endRef} />
+                </div>
               </div>
             )}
+
+            <div ref={endRef} className="h-1" />
           </div>
-
-          <form
-            className="mt-3 flex items-end gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              sendMessage();
-            }}
-          >
-            <Input
-              value={inputMessage}
-              onChange={(event) => setInputMessage(event.target.value)}
-              placeholder="Ask Lynkr AI about rewards and spending..."
-              className="h-12 rounded-xl"
-            />
-            <Button type="submit" className="min-h-11 rounded-xl px-4" disabled={sending || !inputMessage.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
-        </section>
-
-        <section className="mt-5 grid gap-3 md:grid-cols-2">
-          <article data-testid="insights-card" className="rounded-3xl border border-white/10 bg-card/80 p-4">
-            <h3 className="font-semibold mb-2">Key Insights</h3>
-            <div className="space-y-2">
-              {insights.insights?.slice(0, 4).map((insight, index) => (
-                <p key={index} className="text-sm rounded-xl border border-white/10 bg-background/40 p-3">
-                  {insight}
-                </p>
-              ))}
-            </div>
-          </article>
-          <article data-testid="recommendations-card" className="rounded-3xl border border-white/10 bg-card/80 p-4">
-            <h3 className="font-semibold mb-2">Recommendations</h3>
-            <div className="space-y-2">
-              {insights.recommendations?.slice(0, 4).map((rec, index) => (
-                <p key={index} className="text-sm rounded-xl border border-white/10 bg-background/40 p-3">
-                  {rec}
-                </p>
-              ))}
-            </div>
-          </article>
-        </section>
+        )}
       </div>
+
+      {/* ── BOTTOM INPUT AREA ── */}
+      <div className="shrink-0 border-t border-border bg-surface-page/95 backdrop-blur-md">
+        {/* Suggestion chips (when conversation exists) */}
+        {messages.length > 0 && !sending && (
+          <div className="px-4 pt-2.5">
+            <SuggestionChips
+              suggestions={SUGGESTIONS}
+              onSelect={(text) => sendMessage(text)}
+            />
+          </div>
+        )}
+
+        <div className="px-4 py-3">
+          <InputBar
+            value={inputMessage}
+            onChange={setInputMessage}
+            onSend={() => sendMessage()}
+            disabled={sending}
+          />
+        </div>
+      </div>
+    </div>
   );
 };
 

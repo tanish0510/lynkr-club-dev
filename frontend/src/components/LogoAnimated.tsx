@@ -9,9 +9,9 @@ const logoPaths = [
 const LogoAnimated = ({ className, onComplete }) => (
   <motion.svg
     viewBox="300 210 420 190"
-    className={className}
+    className={`text-foreground ${className || ''}`}
     xmlns="http://www.w3.org/2000/svg"
-    style={{ filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.05))' }}
+    style={{ filter: 'drop-shadow(0 0 8px rgba(128,128,128,0.08))' }}
     initial={{ scale: 1, opacity: 0.98 }}
     animate={{ scale: [1, 1.01, 1], opacity: [0.95, 1, 0.95] }}
     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 2.1 }}
@@ -22,7 +22,7 @@ const LogoAnimated = ({ className, onComplete }) => (
         <motion.path
           d={path}
           fill="transparent"
-          stroke="#EDEDED"
+          stroke="currentColor"
           strokeWidth="1.2"
           pathLength={1}
           initial={{ strokeDasharray: 1, strokeDashoffset: 1, opacity: 1 }}
@@ -31,7 +31,7 @@ const LogoAnimated = ({ className, onComplete }) => (
         />
         <motion.path
           d={path}
-          fill="#EDEDED"
+          fill="currentColor"
           opacity={0}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.8, duration: 0.3, ease: 'easeInOut' }}

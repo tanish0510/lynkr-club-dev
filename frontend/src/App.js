@@ -31,14 +31,17 @@ import VerifyEmailPage from '@/pages/VerifyEmailPage';
 import AIChatbot from '@/components/AIChatbot';
 import MarketingLayout from '@/components/layouts/MarketingLayout';
 import AppLayout from '@/components/layouts/AppLayout';
+import AppGate from '@/components/AppGate';
+import LandingWithLoader from '@/components/LandingWithLoader';
 import BrandLoader from '@/components/BrandLoader';
 import DocumentHead from '@/components/DocumentHead';
+import CookieBanner from '@/components/CookieBanner';
 import '@/index.css';
 
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const EnhancedAuthPage = lazy(() => import('@/pages/EnhancedAuthPage'));
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage'));
-const UserDashboard = lazy(() => import('@/pages/UserDashboard'));
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const PurchasesPage = lazy(() => import('@/pages/PurchasesPage'));
 const AIInsightsPage = lazy(() => import('@/pages/AIInsightsPage'));
 const RewardsPage = lazy(() => import('@/pages/RewardsPage'));
@@ -46,52 +49,117 @@ const MyActivityPage = lazy(() => import('@/pages/MyActivityPage'));
 const CommunityPage = lazy(() => import('@/pages/CommunityPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const ChatPage = lazy(() => import('@/pages/ChatPage'));
+const InvitePage = lazy(() => import('@/pages/InvitePage'));
+const PointsHistoryPage = lazy(() => import('@/pages/PointsHistoryPage'));
+const RewardsHistoryPage = lazy(() => import('@/pages/RewardsHistoryPage'));
+const InsightsPage = lazy(() => import('@/pages/InsightsPage'));
 const TermsPage = lazy(() => import('@/pages/TermsPage'));
+const PartnerCatalogPage = lazy(() => import('@/pages/partner/PartnerCatalogPage'));
+const PublicCatalogPage = lazy(() => import('@/pages/PublicCatalogPage'));
+const HomeHub = lazy(() => import('@/components/home/HomeHub'));
+const CatalogPage = lazy(() => import('@/pages/CatalogPage'));
+const DynamicCouponsPage = lazy(() => import('@/pages/DynamicCouponsPage'));
+const GiftCardsPage = lazy(() => import('@/pages/GiftCardsPage'));
+const AdminDynamicCoupons = lazy(() => import('@/pages/AdminDynamicCoupons'));
+const ActivityTimelinePage = lazy(() => import('@/pages/ActivityTimelinePage'));
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, loading } = useAuth();
   const { pathname } = useLocation();
-  const isPartnerRoute = pathname.startsWith('/partner/dashboard') || pathname.startsWith('/partner-dashboard');
+  const isPartnerRoute = pathname.startsWith('/app/partner');
   const isAdminRoute =
-    pathname.startsWith('/admin') ||
+    pathname.startsWith('/app/admin') ||
     pathname.startsWith('/partner-demo') ||
     pathname.startsWith('/partner-demo-dashboard');
 
-  if (loading) {
-    return <BrandLoader label="Preparing your account..." />;
-  }
+  const loadingEl = (
+    <div className="min-h-screen w-full flex items-center justify-center bg-background" aria-busy="true">
+      <BrandLoader label="Preparing your account..." />
+    </div>
+  );
+
+  if (loading) return loadingEl;
 
   if (!user) {
-    if (isPartnerRoute) return <Navigate to="/partner/login" replace />;
-    if (isAdminRoute) return <Navigate to="/admin" replace />;
-    return <Navigate to="/login" replace />;
+    const to = isPartnerRoute ? '/app/partner/login' : isAdminRoute ? '/app/admin' : '/app/login';
+    return (
+      <>
+        <div className="min-h-screen w-full flex items-center justify-center bg-background" aria-busy="true">
+          <BrandLoader label="Redirecting to login..." />
+        </div>
+        <Navigate to={to} replace />
+      </>
+    );
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    if (user.role === 'USER') return <Navigate to="/app/dashboard" replace />;
-    if (user.role === 'PARTNER') return <Navigate to="/partner/dashboard" replace />;
-    if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
-    return <Navigate to="/" replace />;
+    const to =
+      user.role === 'USER' ? '/app/home'
+        : user.role === 'PARTNER' ? '/app/partner'
+          : user.role === 'ADMIN' ? '/app/admin'
+            : '/';
+    return (
+      <>
+        <div className="min-h-screen w-full flex items-center justify-center bg-background" aria-busy="true">
+          <BrandLoader label="Redirecting..." />
+        </div>
+        <Navigate to={to} replace />
+      </>
+    );
   }
 
   return children;
 };
 
-const LoadingScreen = () => <BrandLoader label="Loading page..." />;
+const LoadingScreen = () => (
+  <div className="min-h-screen w-full flex items-center justify-center bg-background" aria-busy="true">
+    <BrandLoader label="Loading page..." />
+  </div>
+);
 
 function AdminGate() {
   const { user, loading, logout } = useAuth();
-  if (loading) return <BrandLoader label="Loading..." />;
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background" aria-busy="true">
+        <BrandLoader label="Loading..." />
+      </div>
+    );
+  }
   if (!user) return <AdminLoginPage />;
   if (user.role !== 'ADMIN') {
     logout();
-    return <Navigate to="/" replace />;
+    return (
+      <>
+        <div className="min-h-screen w-full flex items-center justify-center bg-background" aria-busy="true">
+          <BrandLoader label="Redirecting..." />
+        </div>
+        <Navigate to="/" replace />
+      </>
+    );
   }
   return (
     <AdminLayout>
       <Outlet />
     </AdminLayout>
   );
+}
+
+function AdminPanelDirect() {
+  const { user, loading, logout } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background" aria-busy="true">
+        <BrandLoader label="Loading..." />
+      </div>
+    );
+  }
+  if (!user) return <AdminLoginPage />;
+  if (user.role !== 'ADMIN') {
+    logout();
+    return <Navigate to="/" replace />;
+  }
+  return <AdminPanel />;
 }
 
 function AppRoutes() {
@@ -102,37 +170,48 @@ function AppRoutes() {
       <DocumentHead />
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
+          {/* Marketing website: loading animation then landing (no welcome card on /) */}
           <Route element={<MarketingLayout />}>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<EnhancedAuthPage forcedMode="login" />} />
-            <Route path="/signup" element={<EnhancedAuthPage forcedMode="signup" />} />
+            <Route path="/" element={<LandingWithLoader><LandingPage /></LandingWithLoader>} />
           </Route>
 
-          {/* Legacy auth route */}
-          <Route path="/auth" element={<Navigate to="/login" replace />} />
+          <Route path="/auth" element={<Navigate to="/app/login" replace />} />
 
-          {/* Partner public routes */}
-          <Route path="/partner" element={<PartnerLanding />} />
+          {/* Partner marketing: canonical /partners */}
           <Route path="/partners" element={<PartnerLanding />} />
           <Route path="/partners/:city/:businessType" element={<PartnerSEOPage />} />
-          <Route path="/partner/login" element={<PartnerLoginPage />} />
-          <Route path="/partners/login" element={<PartnerLoginPage />} />
-          <Route path="/partner-program" element={<Navigate to="/partner" replace />} />
-          <Route path="/partner-first-login" element={<PartnerFirstLoginPassword />} />
+          <Route path="/partner" element={<Navigate to="/partners" replace />} />
+          <Route path="/partner-program" element={<Navigate to="/partners" replace />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/terms" element={<TermsPage />} />
+          <Route path="/catalog/:slug" element={<PublicCatalogPage />} />
 
-          {/* User app routes */}
+          {/* App routes: define more specific /app/* before generic /app so partner login stays under /app */}
+          <Route path="/app/login" element={<EnhancedAuthPage forcedMode="login" />} />
+          <Route path="/app/signup" element={<EnhancedAuthPage forcedMode="signup" />} />
+          <Route path="/app/partner/login" element={<PartnerLoginPage />} />
+          <Route path="/app/partner/first-login" element={<PartnerFirstLoginPassword />} />
+          <Route path="/partner-first-login" element={<Navigate to="/app/partner/first-login" replace />} />
+          <Route path="/partners/login" element={<Navigate to="/app/partner/login" replace />} />
+          <Route path="/partner/login" element={<Navigate to="/app/partner/login" replace />} />
+          <Route path="/login" element={<Navigate to="/app/login" replace />} />
+          <Route path="/signup" element={<Navigate to="/app/signup" replace />} />
+
+          {/* Application: /app (user dashboard etc.) */}
           <Route
             path="/app"
             element={
-              <ProtectedRoute allowedRoles={['USER']}>
-                <AppLayout />
-              </ProtectedRoute>
+              <AppGate>
+                <ProtectedRoute allowedRoles={['USER']}>
+                  <AppLayout />
+                </ProtectedRoute>
+              </AppGate>
             }
           >
-            <Route index element={<Navigate to="/app/dashboard" replace />} />
-            <Route path="dashboard" element={<UserDashboard />} />
+            <Route index element={<Navigate to="/app/home" replace />} />
+            <Route path="home" element={<HomeHub />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="catalog" element={<CatalogPage />} />
             <Route path="purchases" element={<PurchasesPage />} />
             <Route path="rewards" element={<RewardsPage />} />
             <Route path="my-activity" element={<MyActivityPage />} />
@@ -140,6 +219,43 @@ function AppRoutes() {
             <Route path="profile" element={<SettingsPage />} />
             <Route path="community" element={<CommunityPage />} />
             <Route path="chat" element={<ChatPage />} />
+            <Route path="invite" element={<InvitePage />} />
+            <Route path="points" element={<PointsHistoryPage />} />
+            <Route path="rewards/history" element={<RewardsHistoryPage />} />
+            <Route path="insights" element={<InsightsPage />} />
+            <Route path="gift-cards" element={<GiftCardsPage />} />
+            <Route path="dynamic-coupons" element={<DynamicCouponsPage />} />
+            <Route path="activity-timeline" element={<ActivityTimelinePage />} />
+          </Route>
+
+          <Route
+            path="/app/partner"
+            element={
+              <ProtectedRoute allowedRoles={['PARTNER']}>
+                <PartnerDashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<EnhancedPartnerDashboard />} />
+            <Route path="catalog" element={<PartnerCatalogPage />} />
+            <Route path="growth" element={<PartnerGrowthDashboard />} />
+            <Route path="orders" element={<PartnerOrdersPage />} />
+            <Route path="rewards" element={<PartnerRewardsPage />} />
+            <Route path="campaigns" element={<PartnerCampaignsPage />} />
+            <Route path="coupon-requests" element={<PartnerCouponRequestsPage />} />
+            <Route path="customers" element={<PartnerCustomersPage />} />
+            <Route path="analytics" element={<PartnerAnalyticsPage />} />
+            <Route path="settings" element={<PartnerSettingsPage />} />
+          </Route>
+
+          <Route path="/app/admin" element={<AdminPanelDirect />} />
+          <Route path="/app/admin/*" element={<AdminGate />}>
+            <Route path="coupon-requests" element={<AdminCouponRequests />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="partner-resources" element={<AdminPartnerResources />} />
+            <Route path="partner-pitch" element={<AdminPartnerPitchDeck />} />
+            <Route path="dynamic-coupons" element={<AdminDynamicCoupons />} />
           </Route>
 
           <Route
@@ -151,60 +267,27 @@ function AppRoutes() {
             }
           />
 
-          {/* Legacy user paths */}
-          <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+          {/* Legacy redirects */}
+          <Route path="/dashboard" element={<Navigate to="/app/home" replace />} />
           <Route path="/purchases" element={<Navigate to="/app/purchases" replace />} />
           <Route path="/rewards" element={<Navigate to="/app/rewards" replace />} />
           <Route path="/insights" element={<Navigate to="/app/ai" replace />} />
           <Route path="/settings" element={<Navigate to="/app/profile" replace />} />
           <Route path="/community" element={<Navigate to="/app/community" replace />} />
           <Route path="/chat" element={<Navigate to="/app/chat" replace />} />
+          <Route path="/partner/dashboard" element={<Navigate to="/app/partner" replace />} />
+          <Route path="/partner/dashboard/*" element={<Navigate to="/app/partner" replace />} />
+          <Route path="/partner-dashboard" element={<Navigate to="/app/partner" replace />} />
+          <Route path="/partner-dashboard/*" element={<Navigate to="/app/partner" replace />} />
+          <Route path="/partner-orders" element={<Navigate to="/app/partner/orders" replace />} />
+          <Route path="/admin" element={<Navigate to="/app/admin" replace />} />
+          <Route path="/admin/*" element={<Navigate to="/app/admin" replace />} />
 
-          {/* Partner dashboard at /partner/dashboard */}
-          <Route
-            path="/partner/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['PARTNER']}>
-                <PartnerDashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<EnhancedPartnerDashboard />} />
-            <Route path="growth" element={<PartnerGrowthDashboard />} />
-            <Route path="orders" element={<PartnerOrdersPage />} />
-            <Route path="rewards" element={<PartnerRewardsPage />} />
-            <Route path="campaigns" element={<PartnerCampaignsPage />} />
-            <Route path="coupon-requests" element={<PartnerCouponRequestsPage />} />
-            <Route path="customers" element={<PartnerCustomersPage />} />
-            <Route path="analytics" element={<PartnerAnalyticsPage />} />
-            <Route path="settings" element={<PartnerSettingsPage />} />
-          </Route>
-          <Route path="/partner-dashboard" element={<Navigate to="/partner/dashboard" replace />} />
-          <Route path="/partner-dashboard/*" element={<Navigate to="/partner/dashboard" replace />} />
-          <Route path="/partner-orders" element={<Navigate to="/partner/dashboard/orders" replace />} />
-
-          <Route
-            path="/admin/partner-pitch"
-            element={
-              <ProtectedRoute allowedRoles={['ADMIN']}>
-                <AdminPartnerPitchDeck />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/partner-pitch" element={<Navigate to="/app/admin/partner-pitch" replace />} />
           <Route path="/partner-pitch" element={<AdminPartnerPitchDeck />} />
           <Route path="/partner-demo" element={<AdminPartnerDemoMode />} />
           <Route path="/partner-demo-dashboard" element={<AdminPartnerDemoDashboard />} />
           <Route path="/partner-demo-experience" element={<PartnerDemoExperience />} />
-
-          {/* Admin: login or dashboard with sidebar */}
-          <Route path="/admin" element={<AdminGate />}>
-            <Route index element={<AdminPanel />} />
-            <Route path="coupon-requests" element={<AdminCouponRequests />} />
-            <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="partner-resources" element={<AdminPartnerResources />} />
-            <Route path="partner-pitch-deck" element={<Navigate to="/admin/partner-pitch" replace />} />
-          </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -220,9 +303,10 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div className="dark">
+        <div className="min-h-screen bg-background">
           <AppRoutes />
           <Toaster position="top-right" richColors />
+          <CookieBanner policyHref="/terms" policyLabel="cookie policy" />
         </div>
       </AuthProvider>
     </BrowserRouter>

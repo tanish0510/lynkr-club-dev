@@ -6,9 +6,9 @@ const logoPaths = [
 ];
 
 const Logo = ({ className }) => (
-  <svg viewBox="300 210 420 190" className={className} xmlns="http://www.w3.org/2000/svg" aria-label="Lynkr">
+  <svg viewBox="300 210 420 190" className={`text-foreground ${className || ''}`} xmlns="http://www.w3.org/2000/svg" aria-label="Lynkr">
     {logoPaths.map((path, index) => (
-      <path key={index} d={path} fill="#EDEDED" />
+      <path key={index} d={path} fill="currentColor" />
     ))}
   </svg>
 );

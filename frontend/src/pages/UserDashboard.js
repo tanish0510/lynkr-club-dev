@@ -109,7 +109,7 @@ const UserDashboard = () => {
       <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
         <div className="space-y-4">
           {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="h-24 rounded-3xl border border-white/10 bg-card/60 animate-pulse" />
+            <div key={item} className="h-24 rounded-3xl border border-border bg-card/60 animate-pulse" />
           ))}
         </div>
       </div>
@@ -118,7 +118,7 @@ const UserDashboard = () => {
 
   return (
     <PullToRefresh onRefresh={fetchDashboard} className="max-w-6xl mx-auto px-4 py-6 md:py-10 space-y-5">
-      <section id="tour-points-card" className="rounded-3xl border border-white/10 bg-card/80 p-5 md:p-7">
+      <section id="tour-points-card" className="rounded-3xl border border-border bg-card/80 p-5 md:p-7">
         <p className="text-xs uppercase tracking-wider text-muted-foreground">Hello, {user?.full_name || 'Lynkr User'}</p>
         <div className="mt-3 flex items-end justify-between gap-4">
           <div>
@@ -146,7 +146,7 @@ const UserDashboard = () => {
             key={item.label}
             type="button"
             onClick={item.action}
-            className="rounded-2xl border border-white/10 bg-card/70 px-3 py-4 text-left transition-all duration-200 active:scale-[0.98] hover:border-white/20"
+            className="rounded-2xl border border-border bg-card/70 px-3 py-4 text-left transition-all duration-200 active:scale-[0.98] hover:border-border"
           >
             <item.icon className="h-5 w-5 text-primary mb-2" />
             <p className="text-sm font-medium">{item.label}</p>
@@ -154,7 +154,7 @@ const UserDashboard = () => {
         ))}
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-card/70 p-4">
+      <section className="rounded-3xl border border-border bg-card/70 p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Recent Purchases</h2>
           <Button variant="ghost" className="min-h-11 rounded-xl" onClick={() => navigate('/app/purchases')}>
@@ -165,7 +165,7 @@ const UserDashboard = () => {
           {(dashboard.recent_purchases || []).slice(0, 8).map((purchase) => (
             <article
               key={purchase.id}
-              className="min-w-[240px] snap-start rounded-2xl border border-white/10 bg-background/60 p-4"
+              className="min-w-[240px] snap-start rounded-2xl border border-border bg-background/60 p-4"
             >
               <p className="font-medium">{purchase.brand || 'Partner'}</p>
               <p className="text-xs text-muted-foreground mt-1">Order #{purchase.order_id}</p>
@@ -176,14 +176,14 @@ const UserDashboard = () => {
             </article>
           ))}
           {(!dashboard.recent_purchases || dashboard.recent_purchases.length === 0) && (
-            <div className="w-full rounded-2xl border border-dashed border-white/10 p-6 text-sm text-muted-foreground">
+            <div className="w-full rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
               No purchases yet. Start by raising your first purchase.
             </div>
           )}
         </div>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-card/70 p-4">
+      <section className="rounded-3xl border border-border bg-card/70 p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Featured Rewards</h2>
           <Button variant="ghost" className="min-h-11 rounded-xl" onClick={() => navigate('/app/rewards')}>
@@ -192,14 +192,14 @@ const UserDashboard = () => {
         </div>
         <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1 snap-x snap-mandatory">
           {featuredRewards.map((reward) => (
-            <article key={reward.id} className="min-w-[220px] snap-start rounded-2xl border border-white/10 bg-background/60 p-4">
+            <article key={reward.id} className="min-w-[220px] snap-start rounded-2xl border border-border bg-background/60 p-4">
               <p className="text-sm text-primary">{reward.partner_name || 'Partner Offer'}</p>
               <h3 className="mt-1 font-semibold">{reward.title}</h3>
               <p className="mt-3 text-sm text-muted-foreground">{reward.points_cost} points</p>
             </article>
           ))}
           {featuredRewards.length === 0 && (
-            <div className="w-full rounded-2xl border border-dashed border-white/10 p-6 text-sm text-muted-foreground">
+            <div className="w-full rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
               Rewards will appear here as soon as offers are available.
             </div>
           )}
@@ -207,7 +207,7 @@ const UserDashboard = () => {
       </section>
 
       <section className="grid gap-3 md:grid-cols-2">
-        <article className="rounded-3xl border border-white/10 bg-card/70 p-4 md:col-span-1">
+        <article className="rounded-3xl border border-border bg-card/70 p-4 md:col-span-1">
           <div className="flex items-center gap-2 mb-2">
             <Bot className="h-4 w-4 text-primary" />
             <h3 className="font-semibold">AI Insight</h3>
@@ -221,7 +221,7 @@ const UserDashboard = () => {
         </article>
 
         {communityLeader ? (
-          <article className="rounded-3xl border border-white/10 bg-card/70 p-4 md:col-span-1">
+          <article className="rounded-3xl border border-border bg-card/70 p-4 md:col-span-1">
             <div className="flex items-center gap-2 mb-2">
               <Trophy className="h-4 w-4 text-primary" />
               <h3 className="font-semibold">Community Highlight</h3>
@@ -240,14 +240,14 @@ const UserDashboard = () => {
       </section>
 
       {registeredPartners.length > 0 ? (
-        <section className="rounded-3xl border border-white/10 bg-card/70 p-4">
+        <section className="rounded-3xl border border-border bg-card/70 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Handshake className="h-4 w-4 text-primary" />
             <h3 className="font-semibold">Registered Partners</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {registeredPartners.map((partner) => (
-              <div key={partner.id} className="rounded-xl border border-white/10 bg-background/60 p-3">
+              <div key={partner.id} className="rounded-xl border border-border bg-background/60 p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">{partner.business_name}</p>
                   <span className="text-[10px] uppercase tracking-wide text-primary">{partner.status}</span>
@@ -259,7 +259,7 @@ const UserDashboard = () => {
           <Button
             variant="ghost"
             className="w-full mt-3 min-h-11 rounded-xl"
-            onClick={() => navigate('/partner-program')}
+            onClick={() => navigate('/partners')}
           >
             Explore partners
             <ArrowUpRight className="ml-2 h-4 w-4" />

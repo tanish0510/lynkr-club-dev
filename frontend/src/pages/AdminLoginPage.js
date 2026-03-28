@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 const AdminLoginPage = () => {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ const AdminLoginPage = () => {
         return;
       }
       toast.success('Welcome back!');
-      navigate('/admin');
+      setTimeout(() => navigate('/app/admin'), 0);
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Login failed');
     } finally {
@@ -34,7 +35,10 @@ const AdminLoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle size="sm" />
+      </div>
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-6">
           <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center">
@@ -44,7 +48,7 @@ const AdminLoginPage = () => {
         <h1 className="text-2xl md:text-3xl font-bold font-heading text-center text-foreground">Admin login</h1>
         <p className="text-muted-foreground text-center mt-2 mb-8">Sign in with your admin credentials</p>
 
-        <div className="bg-card rounded-2xl border border-white/5 p-6 shadow-sm">
+        <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="admin-email">Email</Label>
@@ -55,7 +59,7 @@ const AdminLoginPage = () => {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 required
-                className="mt-1.5 rounded-xl h-11 bg-secondary/50 border-white/10"
+                className="mt-1.5 rounded-xl h-11 bg-secondary/50 border-border"
               />
             </div>
             <div>
@@ -67,7 +71,7 @@ const AdminLoginPage = () => {
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required
-                className="mt-1.5 rounded-xl h-11 bg-secondary/50 border-white/10"
+                className="mt-1.5 rounded-xl h-11 bg-secondary/50 border-border"
               />
             </div>
             <Button type="submit" disabled={loading} className="w-full min-h-11 rounded-xl font-medium">

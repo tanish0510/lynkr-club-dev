@@ -7,6 +7,9 @@
 
 const TOKEN_KEY = 'token';
 
+/** All localStorage keys that must be cleared on logout so no previous role/session can leak. */
+const AUTH_STORAGE_KEYS = [TOKEN_KEY];
+
 /**
  * Decode JWT payload without verification (client-side only; backend validates).
  * Returns { exp } or null if invalid.
@@ -34,11 +37,17 @@ export function isTokenExpired(token) {
 
 /**
  * Clear all auth/session data. Call on logout.
- * - Removes token from localStorage.
- * - Clears sessionStorage so any session-scoped cache is wiped and next login is a fresh session.
+ * - Removes every known auth key from localStorage so no previous role/token can affect next login.
+ * - Clears sessionStorage so any session-scoped cache is wiped.
  */
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
+  AUTH_STORAGE_KEYS.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch (_) {
+      // ignore
+    }
+  });
   try {
     sessionStorage.clear();
   } catch (_) {

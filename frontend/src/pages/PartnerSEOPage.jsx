@@ -58,8 +58,9 @@ function PartnerSEOPage() {
           title: getPartnerSEOTitle(cityName, businessName),
           description: getPartnerSEODescription(cityName, businessName),
           path,
+          image: 'https://lynkr.club/icons/favicon-512x512.png',
         }
-      : { title: 'Partners | Lynkr', description: 'Join the Lynkr partner rewards network.', path: '/partners' }
+      : { title: 'Partners | Lynkr', description: 'Join the Lynkr partner rewards network.', path: '/partners', image: 'https://lynkr.club/icons/favicon-512x512.png' }
   );
 
   useEffect(() => {
@@ -122,7 +123,7 @@ function PartnerSEOPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header>
-        <nav className="border-b border-white/5 bg-background/80 backdrop-blur-xl" aria-label="Breadcrumb">
+        <nav className="border-b border-border bg-background/80 backdrop-blur-xl" aria-label="Breadcrumb">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3">
             <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">Lynkr</Link>
             <span className="text-muted-foreground mx-2">/</span>
@@ -177,7 +178,7 @@ function PartnerSEOPage() {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {BENEFITS.map((b) => (
-                <div key={b.title} className="bg-card rounded-2xl border border-white/5 p-5 shadow-sm">
+                <div key={b.title} className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                   <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center mb-3">
                     <b.icon className="h-5 w-5 text-primary" />
                   </div>
@@ -196,7 +197,7 @@ function PartnerSEOPage() {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {FEATURES.map((f) => (
-                <div key={f.title} className="bg-card rounded-2xl border border-white/5 p-5 shadow-sm">
+                <div key={f.title} className="bg-card rounded-2xl border border-border p-5 shadow-sm">
                   <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center mb-3">
                     <f.icon className="h-5 w-5 text-primary" />
                   </div>
@@ -272,7 +273,7 @@ function PartnerSEOPage() {
           </div>
         </section>
 
-        <footer className="py-6 px-4 border-t border-white/5 text-center text-sm text-muted-foreground">
+        <footer className="py-6 px-4 border-t border-border text-center text-sm text-muted-foreground">
           <Link to="/" className="hover:text-foreground">Lynkr</Link>
           {' · '}
           <Link to="/partners" className="hover:text-foreground">Partners</Link>

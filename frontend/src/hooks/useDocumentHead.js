@@ -15,16 +15,22 @@ const setMeta = (nameOrProp, content, isProperty = false) => {
   }
 };
 
+function setOgImage(url) {
+  if (!url) return;
+  setMeta('og:image', url, true);
+  setMeta('twitter:image', url);
+}
+
 /**
  * Updates document title and meta tags for SEO and social sharing.
- * Call from top-level page components or from a central place based on route.
  * @param {Object} options
  * @param {string} options.title - Page title (e.g. "Partners | Lynkr")
  * @param {string} options.description - Meta description
  * @param {string} [options.canonical] - Canonical URL (default: SITE_URL + pathname)
- * @param {string} [options.path] - Path for canonical (e.g. "/partner")
+ * @param {string} [options.path] - Path for canonical (e.g. "/partners")
+ * @param {string} [options.image] - Absolute URL for og:image and twitter:image (default: use existing or site logo)
  */
-export function useDocumentHead({ title, description, canonical, path }) {
+export function useDocumentHead({ title, description, canonical, path, image }) {
   useEffect(() => {
     if (title) document.title = title;
     if (description) {
@@ -48,7 +54,8 @@ export function useDocumentHead({ title, description, canonical, path }) {
     }
     setMeta('og:url', canonicalUrl, true);
     setMeta('twitter:url', canonicalUrl);
-  }, [title, description, canonical, path]);
+    if (image) setOgImage(image);
+  }, [title, description, canonical, path, image]);
 }
 
 export default useDocumentHead;

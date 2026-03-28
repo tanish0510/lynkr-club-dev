@@ -4,23 +4,23 @@ import AppAvatar from "@/components/Avatar";
 const LeaderboardItem = ({ entry }) => {
   const topThree = entry.rank <= 3;
   return (
-    <div className="bg-secondary/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3 px-4 py-3.5">
       <div className="flex items-center gap-3 min-w-0">
-        <div className={`rounded-full p-0.5 ${topThree ? "border border-primary/60" : "border border-transparent"}`}>
-          <AppAvatar avatar={entry.avatar} username={entry.username} className="h-10 w-10" />
+        <div className={`rounded-full p-0.5 shrink-0 ${topThree ? "ring-1 ring-primary/40" : ""}`}>
+          <AppAvatar avatar={entry.avatar} username={entry.username} className="h-9 w-9" />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold truncate">
+          <p className="text-sm font-bold text-foreground truncate">
             #{entry.rank} {entry.username || entry.masked_username}
           </p>
-          <p className="text-xs text-muted-foreground">
-            Redeemed: {entry.coupons_redeemed} coupon{entry.coupons_redeemed === 1 ? "" : "s"}
+          <p className="text-xs text-txt-secondary font-medium">
+            {entry.coupons_redeemed} coupon{entry.coupons_redeemed === 1 ? "" : "s"} redeemed
           </p>
         </div>
       </div>
-      <div className="text-right">
-        <p className="text-xl font-bold text-primary">{entry.points}</p>
-        <p className="text-xs text-muted-foreground">points</p>
+      <div className="text-right shrink-0">
+        <p className="text-lg font-bold text-primary tabular-nums">{entry.points}</p>
+        <p className="text-[11px] text-txt-muted font-medium">pts</p>
       </div>
     </div>
   );

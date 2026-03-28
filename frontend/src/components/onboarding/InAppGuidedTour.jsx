@@ -74,7 +74,7 @@ const InAppGuidedTour = () => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
-        <div className="absolute inset-0 bg-black/70" />
+        <div className="absolute inset-0 bg-surface-overlay/70" />
 
         {rect ? (
           <div
@@ -83,7 +83,7 @@ const InAppGuidedTour = () => {
           />
         ) : null}
 
-        <div className="absolute w-[260px] rounded-2xl border border-white/10 bg-card/95 p-4 shadow-2xl" style={tooltipStyle}>
+        <div className="absolute w-[260px] rounded-2xl border border-border bg-card/95 p-4 shadow-2xl" style={tooltipStyle}>
           <p className="text-sm text-muted-foreground mb-3">{currentStep?.text}</p>
           <div className="flex items-center justify-between gap-2">
             <Button variant="ghost" className="min-h-11 rounded-full" onClick={closeTour}>

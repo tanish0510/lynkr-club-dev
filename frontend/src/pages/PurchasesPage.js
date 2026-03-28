@@ -84,6 +84,12 @@ const PurchasesPage = () => {
     return [...manualItems, ...autoItems].sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [autoPurchases, manualPurchases]);
 
+  const partnerMap = useMemo(() => {
+    const map = {};
+    for (const p of partners) map[p.id] = p;
+    return map;
+  }, [partners]);
+
   const filteredPurchases = useMemo(() => {
     if (statusTab === 'ALL') return normalizedPurchases;
     return normalizedPurchases.filter((p) => p.status === statusTab);
@@ -96,34 +102,28 @@ const PurchasesPage = () => {
 
   return (
     <>
-      <PullToRefresh onRefresh={fetchData} className="max-w-6xl mx-auto px-4 py-6 md:py-10 animate-in fade-in-0">
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div>
-            <h1 className="text-2xl md:text-4xl font-bold font-heading">Purchases</h1>
-            <p className="text-sm text-muted-foreground mt-1">Track, verify and manage your orders.</p>
-          </div>
-        </div>
+      <PullToRefresh onRefresh={fetchData} className="max-w-xl mx-auto px-5 pt-7 pb-12 sm:px-6 animate-in fade-in-0">
+        <header className="mb-6">
+          <p className="text-[11px] text-txt-secondary uppercase tracking-[0.2em] font-bold">Your Orders</p>
+          <h1 className="mt-1.5 text-2xl sm:text-3xl font-heading font-bold text-foreground">Purchases</h1>
+          <p className="text-xs text-txt-secondary font-medium mt-1">Track, verify and manage your orders.</p>
+        </header>
 
         <Tabs value={statusTab} onValueChange={setStatusTab} className="w-full mb-6">
-          <TabsList className="grid h-auto w-full grid-cols-3 rounded-2xl border border-white/10 bg-[#131722] p-1.5">
-            <TabsTrigger
-              value="ALL"
-              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
-            >
-              All
-            </TabsTrigger>
-            <TabsTrigger
-              value="PENDING"
-              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
-            >
-              Pending
-            </TabsTrigger>
-            <TabsTrigger
-              value="VERIFIED"
-              className="w-full rounded-xl min-h-11 text-sm font-medium text-[#97A0AF] data-[state=active]:bg-[#0C1018] data-[state=active]:text-[#E7ECF5] data-[state=active]:shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]"
-            >
-              Verified
-            </TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-3 rounded-2xl border border-border bg-muted p-1">
+            {[
+              { value: 'ALL', label: 'All' },
+              { value: 'PENDING', label: 'Pending' },
+              { value: 'VERIFIED', label: 'Verified' },
+            ].map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="w-full rounded-xl min-h-10 text-sm font-bold text-txt-secondary transition-all duration-200 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-sm"
+              >
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
 
@@ -131,6 +131,7 @@ const PurchasesPage = () => {
           purchases={filteredPurchases}
           loading={loading}
           onRaiseFirstPurchase={openRaise}
+          partnerMap={partnerMap}
           onEdit={(purchase) => {
             setEditingPurchase(purchase);
             setModalOpen(true);
@@ -140,7 +141,7 @@ const PurchasesPage = () => {
 
       <Button
         onClick={openRaise}
-        className="fixed bottom-24 right-4 z-30 h-14 w-14 rounded-full p-0 shadow-2xl lg:bottom-8 lg:right-8 transition-transform duration-200 active:scale-95"
+        className="fixed z-30 h-14 w-14 rounded-full p-0 shadow-2xl transition-transform duration-200 active:scale-95 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-5 lg:bottom-8 lg:right-8"
         aria-label="Raise purchase"
       >
         <Plus className="h-6 w-6" />

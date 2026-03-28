@@ -24,7 +24,7 @@ import useIsMobile from '@/hooks/useIsMobile';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const cardClass = 'rounded-2xl border border-white/10 bg-[#171717]/70 backdrop-blur-md shadow-[0_14px_40px_rgba(10,18,40,0.45)]';
+const cardClass = 'rounded-2xl border border-border bg-card backdrop-blur-md shadow-[0_14px_40px_rgba(10,18,40,0.45)]';
 
 const EMphasisClass = {
   lynkr: 'bg-gradient-to-r from-[#3B82F6] to-[#14B8A6] bg-clip-text text-transparent',
@@ -47,7 +47,7 @@ const StoryBlock = ({ title, children, delay = 0 }) => (
     className={`${cardClass} p-6 md:p-7`}
   >
     <h4 className="text-xl md:text-2xl font-heading font-bold mb-3">{title}</h4>
-    <div className="text-sm md:text-base leading-7 text-[#C4C4C4]">{children}</div>
+    <div className="text-sm md:text-base leading-7 text-txt-secondary">{children}</div>
   </motion.div>
 );
 
@@ -107,7 +107,7 @@ const AdminPartnerDemoMode = () => {
   };
 
   return (
-    <div ref={rootRef} className="min-h-screen bg-[#050506] text-[#FAFAFA] overflow-x-hidden">
+    <div ref={rootRef} className="min-h-screen bg-surface-page text-foreground overflow-x-hidden">
       <div className="fixed inset-0 pointer-events-none">
         <motion.div
           className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[#3B82F6]/20 blur-3xl"
@@ -121,11 +121,11 @@ const AdminPartnerDemoMode = () => {
         />
       </div>
 
-      <div className="relative z-10 px-4 md:px-10 py-6 border-b border-white/5 bg-black/20 backdrop-blur-xl">
+      <div className="relative z-10 px-4 md:px-10 py-6 border-b border-border bg-black/20 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-heading font-bold">Lynkr Partner Demo Mode</h1>
-            <p className="text-sm text-[#A3A3A3]">Scroll-driven interactive product story</p>
+            <p className="text-sm text-txt-secondary">Scroll-driven interactive product story</p>
           </div>
           <Button onClick={openFullscreen} className="rounded-xl min-h-11 bg-[#3B82F6] hover:bg-[#2c6fe0]">
             <Maximize2 className="w-4 h-4 mr-2" />
@@ -151,7 +151,7 @@ const AdminPartnerDemoMode = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.12 }}
-            className="max-w-3xl mx-auto mt-5 text-[#A3A3A3] text-base md:text-lg"
+            className="max-w-3xl mx-auto mt-5 text-txt-secondary text-base md:text-lg"
           >
             Lynkr transforms everyday purchases into a powerful rewards ecosystem that drives customer loyalty and business growth.
           </motion.p>
@@ -160,7 +160,7 @@ const AdminPartnerDemoMode = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
-            className="max-w-4xl mx-auto mt-6 text-sm md:text-base leading-7 text-[#C4C4C4]"
+            className="max-w-4xl mx-auto mt-6 text-sm md:text-base leading-7 text-txt-secondary"
           >
             With <Emphasis tone="lynkr">Lynkr</Emphasis>, every transaction becomes a loyalty touchpoint. Partners can launch
             <Emphasis tone="rewards"> Rewards</Emphasis>, measure <Emphasis tone="growth">Growth</Emphasis>, and track
@@ -184,7 +184,7 @@ const AdminPartnerDemoMode = () => {
           <motion.div
             animate={{ y: [0, 8, 0], opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 1.6, repeat: Infinity }}
-            className="mt-16 inline-flex flex-col items-center text-[#A3A3A3]"
+            className="mt-16 inline-flex flex-col items-center text-txt-secondary"
           >
             <span className="text-xs uppercase tracking-wider">Scroll</span>
             <ArrowDown className="w-5 h-5 mt-1" />
@@ -208,7 +208,7 @@ const AdminPartnerDemoMode = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-center text-[#A3A3A3] mt-3"
+            className="text-center text-txt-secondary mt-3"
           >
             Customer → Partner Store → Earn Rewards → Redeem Anywhere
           </motion.p>
@@ -275,7 +275,7 @@ const AdminPartnerDemoMode = () => {
                   <s.icon className="w-6 h-6" style={{ color: s.color }} />
                 </div>
                 <h4 className="text-2xl font-heading font-bold">{s.title}</h4>
-                <p className="text-[#A3A3A3] mt-2 text-sm">{s.desc}</p>
+                <p className="text-txt-secondary mt-2 text-sm">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -294,7 +294,7 @@ const AdminPartnerDemoMode = () => {
                     <s.icon className="w-7 h-7" style={{ color: s.color }} />
                   </div>
                   <h4 className="text-3xl font-heading font-bold">{s.title}</h4>
-                  <p className="text-[#A3A3A3] mt-3">{s.desc}</p>
+                  <p className="text-txt-secondary mt-3">{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -331,7 +331,7 @@ const AdminPartnerDemoMode = () => {
       <section className="relative z-10 min-h-screen px-4 md:px-10 py-20">
         <div className="max-w-7xl mx-auto">
           <h3 className="text-3xl md:text-5xl font-heading font-bold text-center">Network Effect</h3>
-          <p className="text-center text-[#A3A3A3] mt-3">A growing partner graph that increases cross-store customer flow.</p>
+          <p className="text-center text-txt-secondary mt-3">A growing partner graph that increases cross-store customer flow.</p>
           <div className={`${cardClass} mt-10 p-8 relative overflow-hidden min-h-[380px]`}>
             {[
               { name: 'Cafe', top: '18%', left: '18%' },
@@ -401,7 +401,7 @@ const AdminPartnerDemoMode = () => {
             initial={{ opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center text-[#A3A3A3] mt-4 max-w-3xl mx-auto text-sm md:text-base"
+            className="text-center text-txt-secondary mt-4 max-w-3xl mx-auto text-sm md:text-base"
           >
             This view translates engagement into business outcomes so partner teams can align campaigns with measurable revenue goals.
           </motion.p>
@@ -413,7 +413,7 @@ const AdminPartnerDemoMode = () => {
               ['Retention rate', 74, '%'],
             ].map(([title, val, suffix]) => (
               <motion.div key={title} className={`${cardClass} p-5`} whileHover={{ y: -4 }}>
-                <p className="text-sm text-[#A3A3A3]">{title}</p>
+                <p className="text-sm text-txt-secondary">{title}</p>
                 <p className="text-3xl font-heading font-bold mt-2">
                   <Counter end={Number(val)} suffix={suffix} />
                 </p>
@@ -431,7 +431,7 @@ const AdminPartnerDemoMode = () => {
             initial={{ opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center text-[#A3A3A3] mt-4 max-w-3xl mx-auto text-sm md:text-base"
+            className="text-center text-txt-secondary mt-4 max-w-3xl mx-auto text-sm md:text-base"
           >
             From customer retention to discovery, each benefit compounds over time and improves how businesses forecast growth.
           </motion.p>
@@ -469,7 +469,7 @@ const AdminPartnerDemoMode = () => {
             initial={{ opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center text-[#A3A3A3] mt-4 max-w-3xl mx-auto text-sm md:text-base"
+            className="text-center text-txt-secondary mt-4 max-w-3xl mx-auto text-sm md:text-base"
           >
             Built to be operationally simple: launch promotions, track transactions, and understand customer behavior from one workflow.
           </motion.p>
@@ -493,7 +493,7 @@ const AdminPartnerDemoMode = () => {
               >
                 <Icon className="w-5 h-5 text-[#8B5CF6]" />
                 <p className="font-semibold mt-3">{label}</p>
-                <p className="text-xs text-[#A3A3A3] mt-2">
+                <p className="text-xs text-txt-secondary mt-2">
                   {label === 'Reward Management' && 'Create and tune reward rules based on customer behavior.'}
                   {label === 'Campaign Tools' && 'Run time-bound promotions with clear business goals.'}
                   {label === 'Transaction Tracking' && 'Monitor purchases and reward issuance in one timeline.'}
@@ -519,7 +519,7 @@ const AdminPartnerDemoMode = () => {
             <h3 className="text-3xl md:text-5xl font-heading font-bold">
               Become a <span className="bg-gradient-to-r from-[#3B82F6] to-[#14B8A6] bg-clip-text text-transparent">Lynkr Partner</span>
             </h3>
-            <p className="text-[#A3A3A3] mt-4 text-lg">
+            <p className="text-txt-secondary mt-4 text-lg">
               Join the Lynkr ecosystem and turn everyday transactions into long-term customer loyalty.
             </p>
             <div className="mt-7">
