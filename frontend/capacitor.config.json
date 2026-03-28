@@ -1,0 +1,18 @@
+{
+  "appId": "club.lynkr.app",
+  "appName": "Lynkr",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true
+  },
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#0E0E0E"
+    }
+  }
+}

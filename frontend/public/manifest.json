@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Lynkr",
+  "short_name": "Lynkr",
+  "description": "Lynkr — Partner rewards and loyalty platform. Turn everyday transactions into customer loyalty and increase repeat customers.",
+  "start_url": "/app/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0E0E0E",
+  "theme_color": "#0E0E0E",
+  "categories": ["shopping", "lifestyle", "finance"],
+  "icons": [
+    {
+      "src": "/icons/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

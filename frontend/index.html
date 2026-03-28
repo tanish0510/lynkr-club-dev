@@ -1,11 +1,106 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-KFH9JPZ2LT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-KFH9JPZ2LT');
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A product of emergent.sh" />
-    <title>Lynkr</title>
-    <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+    <meta name="description" content="Lynkr — the partner rewards and loyalty platform. Lynkr helps businesses turn everyday transactions into customer loyalty, increase repeat customers, and grow through a connected rewards network." />
+    <meta name="keywords" content="Lynkr, lynkr rewards, lynkr club, partner rewards, loyalty platform, customer loyalty, rewards network, merchant rewards, loyalty program, repeat customers, rewards for businesses" />
+    <meta name="theme-color" content="#0E0E0E" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Lynkr" />
+    <link rel="canonical" href="https://lynkr.club/" />
+
+    <!-- Open Graph (social sharing: use PNG for broad compatibility) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://lynkr.club/" />
+    <meta property="og:title" content="Lynkr | Partner Rewards & Loyalty Platform — lynkr.club" />
+    <meta property="og:description" content="Turn everyday transactions into loyalty rewards. Lynkr helps businesses increase repeat customers through a connected partner rewards network and customer loyalty program." />
+    <meta property="og:image" content="https://lynkr.club/icons/favicon-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="Lynkr — Partner rewards and loyalty platform" />
+    <meta property="og:site_name" content="Lynkr" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://lynkr.club/" />
+    <meta name="twitter:title" content="Lynkr | Partner Rewards & Loyalty Platform — lynkr.club" />
+    <meta name="twitter:description" content="Turn everyday transactions into loyalty rewards. Increase repeat customers with a connected partner rewards network." />
+    <meta name="twitter:image" content="https://lynkr.club/icons/favicon-512x512.png" />
+    <meta name="twitter:image:alt" content="Lynkr — Partner rewards and loyalty platform" />
+
+    <!-- Favicon: .ico for Google/crawlers (stops blue box); PNG + SVG for modern browsers -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/icons/logo.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/favicon-32x32.png" />
+    <title>Lynkr | Partner Rewards & Loyalty Platform — lynkr.club</title>
+
+    <!-- JSON-LD Structured Data (Organization, WebSite, SoftwareApplication) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://lynkr.club/#organization",
+          "name": "Lynkr",
+          "url": "https://lynkr.club",
+          "logo": { "@type": "ImageObject", "url": "https://lynkr.club/icons/favicon-512x512.png", "width": 512, "height": 512 },
+          "description": "Lynkr is a partner rewards and loyalty platform that helps businesses turn everyday transactions into customer loyalty and increase repeat customers through a connected rewards network.",
+          "sameAs": [
+            "https://www.instagram.com/lynkr.club/",
+            "https://twitter.com/lynkrclub",
+            "https://linkedin.com/company/lynkr"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://lynkr.club/#website",
+          "url": "https://lynkr.club",
+          "name": "Lynkr",
+          "description": "Partner rewards and loyalty platform for businesses. Customer rewards network, loyalty program, and merchant rewards platform.",
+          "publisher": { "@id": "https://lynkr.club/#organization" },
+          "inLanguage": "en-IN",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": { "@type": "EntryPoint", "urlTemplate": "https://lynkr.club/" },
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "Lynkr",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "description": "Lynkr helps businesses run loyalty rewards programs, increase repeat customers, and gain customer insights through a partner reward network.",
+          "url": "https://lynkr.club",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" }
+        }
+      ]
+    }
+    </script>
+    <!-- Dark theme and body background for /app* before React loads (avoids white flash on direct /app/dashboard) -->
+    <script>
+      var mode = 'dark';
+      try { mode = localStorage.getItem('lynkr_color_mode') || 'dark'; } catch(e) {}
+      if (mode === 'dark') document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', mode);
+    </script>
+    <style>html.dark body{background:hsl(0,0%,2%);color:hsl(0,0%,100%);}html:not(.dark) body{background:hsl(0,0%,98%);color:hsl(0,0%,8%);}</style>
   </head>
   <body>
     <div id="root"></div>

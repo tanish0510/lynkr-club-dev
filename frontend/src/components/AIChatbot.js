@@ -1,33 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { MessageCircle, X, Send, Loader2, Trash2 } from 'lucide-react';
+import { X, Send, Trash2, Bot, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/utils/api';
+import AIResponseFormatter from '@/components/ai/AIResponseFormatter';
 
 const AIChatbot = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      loadChatHistory();
-    }
+    if (isOpen && messages.length === 0) loadChatHistory();
   }, [isOpen]);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  useEffect(() => {
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 200);
+  }, [isOpen]);
 
   const loadChatHistory = async () => {
     setLoadingHistory(true);
@@ -49,16 +49,17 @@ const AIChatbot = () => {
       id: Date.now().toString(),
       role: 'user',
       content: inputMessage,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     setMessages([...messages, userMessage]);
+    const msg = inputMessage;
     setInputMessage('');
     setLoading(true);
 
     try {
-      const response = await api.post('/chat', { message: inputMessage });
-      setMessages(prev => [...prev, response.data]);
+      const response = await api.post('/chat', { message: msg });
+      setMessages((prev) => [...prev, response.data]);
     } catch (error) {
       toast.error('Failed to get response from AI');
     } finally {
@@ -67,7 +68,6 @@ const AIChatbot = () => {
   };
 
   const clearHistory = async () => {
-    if (!window.confirm('Clear all chat history?')) return;
     try {
       await api.delete('/chat/history');
       setMessages([]);
@@ -78,91 +78,111 @@ const AIChatbot = () => {
   };
 
   if (!user) return null;
+  if (location.pathname.startsWith('/app/ai') || location.pathname.startsWith('/app/chat')) return null;
+
+  const hasPageFab = location.pathname === '/app/purchases';
+  const btnBottom = hasPageFab
+    ? 'bottom-[calc(9rem+env(safe-area-inset-bottom))] lg:bottom-24'
+    : 'bottom-24 lg:bottom-6';
 
   return (
     <>
-      {/* Chat Button */}
+      {/* Floating AI button */}
       {!isOpen && (
         <button
           data-testid="open-chat-button"
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 bg-primary text-primary-foreground rounded-full p-4 shadow-lg hover:scale-110 transition-transform glow-primary"
+          className={`fixed ${btnBottom} right-4 lg:right-6 z-40 w-11 h-11 rounded-full bg-primary/90 text-primary-foreground shadow-lg shadow-primary/15 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform backdrop-blur-sm`}
         >
-          <MessageCircle className="w-6 h-6" />
+          <Sparkles className="w-[18px] h-[18px]" />
         </button>
       )}
 
-      {/* Chat Window */}
+      {/* Compact chat popup */}
       {isOpen && (
-        <div data-testid="chat-window" className="fixed bottom-6 right-6 z-50 w-96 h-[600px] bg-card border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+        <div
+          data-testid="chat-window"
+          className={`fixed ${btnBottom} right-4 lg:right-6 z-40 w-[calc(100vw-2rem)] max-w-[320px] h-[52vh] max-h-[400px] bg-surface-raised border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden`}
+        >
           {/* Header */}
-          <div className="bg-primary/10 border-b border-white/10 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                <MessageCircle className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-bold font-heading">Lynkr AI</h3>
-                <p className="text-xs text-muted-foreground">Your shopping assistant</p>
-              </div>
-            </div>
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
             <div className="flex items-center gap-2">
-              <Button
-                data-testid="clear-chat-button"
-                onClick={clearHistory}
-                variant="ghost"
-                size="sm"
-                className="hover:bg-white/10 rounded-full"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-              <Button
+              <div className="w-6 h-6 rounded-full bg-primary/12 flex items-center justify-center">
+                <Sparkles className="w-3 h-3 text-primary" />
+              </div>
+              <span className="text-[12px] font-heading font-bold">Lynkr AI</span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              {messages.length > 0 && (
+                <button
+                  data-testid="clear-chat-button"
+                  onClick={clearHistory}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-txt-muted hover:text-txt-secondary hover:bg-muted transition-all"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+              <button
                 data-testid="close-chat-button"
                 onClick={() => setIsOpen(false)}
-                variant="ghost"
-                size="sm"
-                className="hover:bg-white/10 rounded-full"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-txt-muted hover:text-txt-secondary hover:bg-muted transition-all"
               >
-                <X className="w-4 h-4" />
-              </Button>
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2">
             {loadingHistory ? (
               <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
               </div>
             ) : messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <MessageCircle className="w-12 h-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-2">Hi {user.full_name}!</p>
-                <p className="text-sm text-muted-foreground">Ask me about your spending, rewards, or shopping tips!</p>
+              <div className="flex flex-col items-center justify-center h-full text-center px-3">
+                <div className="w-9 h-9 rounded-lg bg-primary/8 border border-primary/10 flex items-center justify-center mb-2.5">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                </div>
+                <p className="text-[12px] font-medium text-foreground mb-0.5">Hi {user.full_name?.split(' ')[0] || 'there'}</p>
+                <p className="text-[10px] text-txt-muted max-w-[180px]">Ask about spending, rewards, or tips</p>
               </div>
             ) : (
               messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  data-testid={`chat-message-${msg.role}`}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                      msg.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground'
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  </div>
+                <div key={msg.id} data-testid={`chat-message-${msg.role}`}>
+                  {msg.role === 'user' ? (
+                    <div className="flex justify-end">
+                      <div className="max-w-[80%] rounded-xl rounded-br-sm px-3 py-2 bg-primary text-primary-foreground text-[12px] leading-[1.5] font-medium">
+                        {msg.content}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-start">
+                      <div className="max-w-[88%]">
+                        <div className="flex items-center gap-1 mb-1">
+                          <div className="w-4 h-4 rounded-full bg-primary/15 flex items-center justify-center">
+                            <Bot className="w-2 h-2 text-primary" />
+                          </div>
+                          <span className="text-[9px] font-semibold text-txt-muted">AI</span>
+                        </div>
+                        <div className="rounded-xl rounded-tl-sm bg-card border border-border px-3 py-2">
+                          <div className="text-[12px] leading-[1.5]">
+                            <AIResponseFormatter content={msg.content} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-secondary rounded-2xl px-4 py-3">
-                  <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                <div className="rounded-xl bg-card border border-border px-3 py-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1 h-1 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1 h-1 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
                 </div>
               </div>
             )}
@@ -170,24 +190,25 @@ const AIChatbot = () => {
           </div>
 
           {/* Input */}
-          <form onSubmit={sendMessage} className="border-t border-white/10 p-4">
-            <div className="flex items-center gap-2">
-              <Input
+          <form onSubmit={sendMessage} className="border-t border-border px-2.5 py-2">
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={inputRef}
                 data-testid="chat-input"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Ask me anything..."
+                placeholder="Ask anything..."
                 disabled={loading}
-                className="flex-1 bg-secondary/50 border-white/10 rounded-full h-12 px-4"
+                className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-[12px] font-medium text-foreground placeholder:text-txt-placeholder outline-none transition-colors focus:border-primary/30 disabled:opacity-40"
               />
-              <Button
+              <button
                 data-testid="send-message-button"
                 type="submit"
                 disabled={loading || !inputMessage.trim()}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full w-12 h-12 p-0"
+                className="shrink-0 w-8 h-8 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-20 flex items-center justify-center transition-all active:scale-95"
               >
-                <Send className="w-5 h-5" />
-              </Button>
+                <Send className="w-3.5 h-3.5 text-primary-foreground" />
+              </button>
             </div>
           </form>
         </div>

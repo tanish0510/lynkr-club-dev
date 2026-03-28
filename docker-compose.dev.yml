@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lynkr-dev-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lynkr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lynkr}
+      POSTGRES_DB: ${POSTGRES_DB:-lynkr_dev}
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lynkr} -d ${POSTGRES_DB:-lynkr_dev}"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lynkr-dev
+
+  backend:
+    image: ${DOCKER_HUB_USERNAME:-tanish0510}/lynkr-backend:dev
+    container_name: lynkr-dev-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lynkr}:${POSTGRES_PASSWORD:-lynkr}@postgres:5432/${POSTGRES_DB:-lynkr_dev}
+      FRONTEND_URL: ${FRONTEND_URL:-https://dev.lynkr.club}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://dev.lynkr.club}
+    volumes:
+      - dev_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lynkr-dev
+
+  frontend:
+    image: ${DOCKER_HUB_USERNAME:-tanish0510}/lynkr-frontend:dev
+    container_name: lynkr-dev-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - lynkr-dev
+
+  nginx:
+    image: nginx:alpine
+    container_name: lynkr-dev-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - lynkr-dev
+
+networks:
+  lynkr-dev:
+    driver: bridge
+
+volumes:
+  dev_postgres_data:
+    driver: local
+  dev_uploads:
+    driver: local

@@ -29,9 +29,9 @@ const AuthPage = () => {
       if (user.role === 'USER') {
         navigate(user.onboarding_complete ? '/dashboard' : '/onboarding');
       } else if (user.role === 'PARTNER') {
-        navigate('/partner-dashboard');
+        navigate('/app/partner');
       } else if (user.role === 'ADMIN') {
-        navigate('/admin');
+        navigate('/app/admin');
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
@@ -52,7 +52,7 @@ const AuthPage = () => {
       } else if (user.role === 'PARTNER') {
         navigate('/partner-signup');
       } else if (user.role === 'ADMIN') {
-        navigate('/admin');
+        navigate('/app/admin');
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Signup failed');
@@ -67,14 +67,14 @@ const AuthPage = () => {
         <Button
           data-testid="back-button"
           variant="ghost"
-          className="mb-8 hover:bg-white/5 rounded-full"
+          className="mb-8 hover:bg-muted rounded-full"
           onClick={() => navigate('/')}
         >
           <ArrowLeft className="mr-2 w-4 h-4" />
           Back to Home
         </Button>
         
-        <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8">
+        <div className="bg-card text-card-foreground rounded-3xl border border-border shadow-2xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold font-heading mb-2">Welcome to Lynkr</h1>
             <p className="text-muted-foreground">Start earning rewards automatically</p>
@@ -98,7 +98,7 @@ const AuthPage = () => {
                     value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                     required
-                    className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
+                    className="bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
                   />
                 </div>
                 <div>
@@ -111,7 +111,7 @@ const AuthPage = () => {
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     required
-                    className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
+                    className="bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
                   />
                 </div>
                 <Button
@@ -144,7 +144,7 @@ const AuthPage = () => {
                     value={signupForm.email}
                     onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
                     required
-                    className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
+                    className="bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
                   />
                 </div>
                 <div>
@@ -157,7 +157,7 @@ const AuthPage = () => {
                     value={signupForm.password}
                     onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
                     required
-                    className="bg-secondary/50 border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
+                    className="bg-secondary/50 border-border focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg"
                   />
                 </div>
                 <div>
@@ -167,7 +167,7 @@ const AuthPage = () => {
                     data-testid="role-select"
                     value={signupForm.role}
                     onChange={(e) => setSignupForm({ ...signupForm, role: e.target.value })}
-                    className="w-full bg-secondary/50 border border-white/10 focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg text-foreground"
+                    className="w-full bg-secondary/50 border border-border focus:border-primary/50 focus:ring-primary/20 rounded-xl h-12 px-4 text-lg text-foreground"
                   >
                     <option value="USER">User (Shopper)</option>
                     <option value="PARTNER">Partner (Brand)</option>

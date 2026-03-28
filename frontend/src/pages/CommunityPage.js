@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Trophy } from "lucide-react";
+import { Trophy, Gift } from "lucide-react";
 import api from "@/utils/api";
-import DashboardLayout from "@/components/DashboardLayout";
+import PullToRefresh from "@/components/mobile/PullToRefresh";
+import AppAvatar from "@/components/Avatar";
+import LeaderboardItem from "@/components/LeaderboardItem";
+import BrandLoader from "@/components/BrandLoader";
 
 const CommunityPage = () => {
   const [leaderboard, setLeaderboard] = useState([]);
+  const [redemptions, setRedemptions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,8 +18,17 @@ const CommunityPage = () => {
 
   const fetchLeaderboard = async () => {
     try {
-      const response = await api.get("/points/leaderboard");
-      setLeaderboard(response.data || []);
+      const [leaderboardRes, redemptionRes] = await Promise.allSettled([
+        api.get("/points/leaderboard"),
+        api.get("/community/redemptions"),
+      ]);
+
+      if (leaderboardRes.status === "fulfilled") {
+        setLeaderboard(leaderboardRes.value.data || []);
+      }
+      if (redemptionRes.status === "fulfilled") {
+        setRedemptions(redemptionRes.value.data || []);
+      }
     } catch (error) {
       toast.error("Failed to load leaderboard");
     } finally {
@@ -24,66 +37,63 @@ const CommunityPage = () => {
   };
 
   if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center">
-            <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4 animate-pulse" />
-            <p className="text-muted-foreground">Loading community leaderboard...</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
+    return <BrandLoader label="Loading community leaderboard..." />;
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-5xl mx-auto px-6 py-12">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 bg-yellow-400/10 px-4 py-2 rounded-full mb-4">
-            <Trophy className="w-5 h-5 text-yellow-400" />
-            <span className="text-sm font-medium text-yellow-400">Community</span>
-          </div>
-          <h1 className="text-5xl md:text-6xl font-bold font-heading mb-4">Leaderboard</h1>
-          <p className="text-xl text-muted-foreground">
-            Top users by points with privacy-safe masked usernames
-          </p>
-        </div>
+    <PullToRefresh onRefresh={fetchLeaderboard} className="max-w-xl mx-auto px-5 pt-7 pb-12 sm:px-6">
+      <header className="mb-6">
+        <p className="text-[11px] text-txt-secondary uppercase tracking-[0.2em] font-bold">Leaderboard</p>
+        <h1 className="mt-1.5 text-2xl sm:text-3xl font-heading font-bold text-foreground flex items-center gap-2.5">
+          Community
+          <Trophy className="h-5 w-5 text-amber-400" />
+        </h1>
+        <p className="text-xs text-txt-secondary font-medium mt-1">Compete, complete weekly challenges, and climb the leaderboard.</p>
+      </header>
 
-        <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8">
-          {leaderboard.length === 0 ? (
-            <p className="text-muted-foreground text-center">No leaderboard data yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {leaderboard.slice(0, 20).map((entry) => (
-                <div
-                  key={entry.user_id}
-                  className="bg-secondary/30 rounded-2xl p-4 flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <p className="font-semibold">
-                      #{entry.rank} {entry.masked_username}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Redeemed: {entry.coupons_redeemed} coupon{entry.coupons_redeemed === 1 ? "" : "s"}
-                    </p>
-                    {entry.last_activity?.description ? (
-                      <p className="text-xs text-muted-foreground">
-                        Last: {entry.last_activity.description}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-bold text-primary">{entry.points}</p>
-                    <p className="text-xs text-muted-foreground">points</p>
+      {redemptions.length > 0 ? (
+        <section className="mb-6">
+          <div className="flex items-center gap-2 mb-3.5">
+            <Gift className="h-4 w-4 text-primary" />
+            <p className="text-[11px] text-txt-secondary uppercase tracking-[0.2em] font-bold">Recent Redemptions</p>
+          </div>
+          <div className="rounded-2xl border border-border bg-muted/30 overflow-hidden divide-y divide-border">
+            {(redemptions || []).slice(0, 5).map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <AppAvatar avatar={item.avatar} username={item.username} className="h-8 w-8 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">{item.username}</p>
+                    <p className="text-xs text-txt-secondary font-medium truncate">redeemed {item.coupon_title || "a reward"}</p>
                   </div>
                 </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] uppercase text-txt-muted font-bold">{item.partner_name || "Lynkr"}</span>
+                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] text-primary font-bold tabular-nums">
+                    {item.points} pts
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section>
+        <p className="text-[11px] text-txt-secondary uppercase tracking-[0.2em] font-bold mb-3.5">Top Earners</p>
+        <div className="rounded-2xl border border-border bg-muted/30 overflow-hidden">
+          {leaderboard.length === 0 ? (
+            <p className="text-txt-secondary text-sm text-center py-10">No leaderboard data yet.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {leaderboard.slice(0, 20).map((entry) => (
+                <LeaderboardItem key={entry.user_id} entry={entry} />
               ))}
             </div>
           )}
         </div>
-      </div>
-    </DashboardLayout>
+      </section>
+    </PullToRefresh>
   );
 };
 

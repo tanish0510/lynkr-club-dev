@@ -1,3 +1,1 @@
-"""
-Services – thin pipeline that wires AI layer. No financial logic here.
-"""
+"""Domain and cross-cutting services (non-AI operational logic)."""

@@ -1,0 +1,19 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Allow: /partners
+Allow: /terms
+Allow: /partner-pitch
+Allow: /partner-demo
+Allow: /partner-demo-dashboard
+Allow: /partner-demo-experience
+
+# App: allow login/signup for discovery; disallow dashboard and admin from indexing
+Disallow: /app/
+Allow: /app/login
+Allow: /app/signup
+Allow: /app/partner/login
+
+# Sitemaps
+Sitemap: https://lynkr.club/sitemap.xml
+Sitemap: https://lynkr.club/sitemap-partners.xml

@@ -1,7 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,7 +30,7 @@ const PartnerFirstLoginPassword = () => {
     try {
       await api.post(`/partner/first-login-password-change?new_password=${encodeURIComponent(newPassword)}`);
       toast.success('Password changed successfully!');
-      navigate('/partner-dashboard');
+      navigate('/app/partner');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to change password');
     } finally {
@@ -41,13 +39,13 @@ const PartnerFirstLoginPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
-      <div className="bg-card text-card-foreground rounded-3xl border border-white/5 shadow-2xl p-8 md:p-12 max-w-md w-full">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
+      <div className="bg-card text-card-foreground rounded-3xl border border-border shadow-2xl p-8 md:p-12 max-w-md w-full">
         <div className="w-16 h-16 bg-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
           <AlertCircle className="w-8 h-8 text-yellow-500" />
         </div>
         
-        <h1 className="text-3xl font-bold font-heading text-center mb-2">Change Your Password</h1>
+        <h1 className="text-2xl md:text-3xl font-bold font-heading text-center mb-2">Change Your Password</h1>
         <p className="text-muted-foreground text-center mb-8">
           For security reasons, please create a new password before continuing.
         </p>
@@ -62,7 +60,7 @@ const PartnerFirstLoginPassword = () => {
               onChange={(e) => setNewPassword(e.target.value)}
               required
               minLength={8}
-              className="bg-secondary/50 border-white/10 rounded-xl h-12"
+              className="bg-secondary/50 border-border rounded-xl h-12"
               placeholder="Enter new password (min 8 characters)"
             />
           </div>
@@ -75,7 +73,7 @@ const PartnerFirstLoginPassword = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="bg-secondary/50 border-white/10 rounded-xl h-12"
+              className="bg-secondary/50 border-border rounded-xl h-12"
               placeholder="Confirm your new password"
             />
           </div>
@@ -83,7 +81,7 @@ const PartnerFirstLoginPassword = () => {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary"
+            className="w-full min-h-11 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full py-6 text-lg font-bold glow-primary"
           >
             {loading ? (
               <>
